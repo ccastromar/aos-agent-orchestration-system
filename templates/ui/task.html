@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>AOS UI - Task {{ .ID }}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background:#020617; color:#e5e7eb; margin:0; padding:20px; }
+    a { color:#38bdf8; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .pill { display:inline-block; padding:0.1rem 0.5rem; border-radius:999px; font-size:0.75rem; background:#111827; color:#e5e7eb; }
+    .pill-agent { background:#1d283a; color:#93c5fd; }
+    .pill-kind  { background:#1e293b; color:#67e8f9; }
+    .time { color:#9ca3af; font-size:0.8rem; }
+    .event { border-left:2px solid #1f2937; padding-left:0.8rem; margin-bottom:0.6rem; }
+    .event-header { display:flex; justify-content:space-between; align-items:center; }
+  </style>
+</head>
+<body>
+  <a href="/ui">&larr; Volver</a>
+  <h1>Task {{ .ID }}</h1>
+
+  {{ range .Events }}
+    <div class="event">
+      <div class="event-header">
+        <div>
+          <span class="pill pill-agent">{{ .Agent }}</span>
+          <span class="pill pill-kind">{{ .Kind }}</span>
+        </div>
+        <div class="time">
+          {{ .Time.Format "15:04:05" }}
+          {{ if .Duration }} · {{ .Duration }}{{ end }}
+        </div>
+      </div>
+      <div>{{ .Message }}</div>
+    </div>
+  {{ end }}
+
+  {{ if not .Events }}
+    <p>Sin eventos para esta tarea.</p>
+  {{ end }}
+</body>
+</html>

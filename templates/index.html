@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h1>AOS UI</h1>
+<ul>
+{{ range $id, $v := . }}
+  <li>{{$id}} - {{$v}}</li>
+{{ end }}
+</ul>
+</body>
+</html>

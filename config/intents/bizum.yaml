@@ -1,0 +1,18 @@
+intents:
+  - type: banking.send_bizum
+    description: >
+      INTENT: Envio de dinero por Bizum
+      Enviar dinero a un contacto mediante Bizum. 
+      Úsalo cuando el usuario quiera "hacer un Bizum", "enviar dinero",
+      "mandar X euros a alguien", etc.
+    pipeline: pipeline_bizum
+    required_params:
+      - amount
+      - toPhone
+      - concept
+    allow_dangerous: true
+    requires_amount: true       # amount obligatorio
+    requires_phone: true        # toPhone obligatorio
+    max_amount: 10              # límite configurable
+    shadow_mode: false    
+
