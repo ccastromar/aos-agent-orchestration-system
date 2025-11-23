@@ -12,6 +12,10 @@ type Timer struct {
 	op    string
 }
 
+func (t *Timer) Duration() {
+	panic("unimplemented")
+}
+
 func Start(id, comp, op string) *Timer {
 	return &Timer{
 		start: time.Now(),

@@ -1,0 +1,10 @@
+tools:
+  - name: aml_risk_check
+    type: http
+    method: POST
+    url: "http://localhost:9000/mock/aml/check"
+    mode: read
+    timeout: 4000
+    body:
+      phone: "{{ .toPhone }}"
+      amount: "{{ .amount }}"

@@ -1,0 +1,38 @@
+tools:
+  - name: support_create_ticket
+    type: http
+    method: POST
+    url: "http://localhost:9003/support/ticket"
+    mode: write
+    timeout: 5000
+    body:
+      subject: "{{ .subject }}"
+      description: "{{ .description }}"
+      priority: "{{ .priority }}"
+
+  - name: support_get_ticket
+    type: http
+    method: GET
+    url: "http://localhost:9003/support/ticket?ticketId={{ .ticketId }}"
+    mode: read
+    timeout: 3000
+
+  - name: support_add_note
+    type: http
+    method: POST
+    url: "http://localhost:9003/support/ticket/note"
+    mode: write
+    timeout: 4000
+    body:
+      ticketId: "{{ .ticketId }}"
+      note: "{{ .note }}"
+
+  - name: support_close_ticket
+    type: http
+    method: POST
+    url: "http://localhost:9003/support/ticket/close"
+    mode: write
+    timeout: 4000
+    body:
+      ticketId: "{{ .ticketId }}"
+      reason: "{{ .reason }}"

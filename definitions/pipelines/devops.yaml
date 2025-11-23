@@ -1,0 +1,32 @@
+pipelines:
+  - name: pipeline_service_status
+    description: "Consulta el estado de un servicio"
+    steps:
+      - tool: infra_get_status
+        with_params: {}
+      - analyst: true
+
+  - name: pipeline_restart_service
+    description: "Reinicia un servicio y comprueba su estado"
+    steps:
+      - tool: infra_restart_service
+        with_params: {}
+      - tool: infra_get_status
+        with_params: {}
+      - analyst: true
+
+  - name: pipeline_deploy_service
+    description: "Despliega una nueva versión de un servicio y verifica estado"
+    steps:
+      - tool: infra_deploy_service
+        with_params: {}
+      - tool: infra_get_status
+        with_params: {}
+      - analyst: true
+
+  - name: pipeline_tail_logs
+    description: "Consulta las últimas líneas de logs de un servicio"
+    steps:
+      - tool: infra_tail_logs
+        with_params: {}
+      - analyst: true

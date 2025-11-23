@@ -12,11 +12,11 @@ import (
 type Analyst struct {
 	bus       *bus.Bus
 	inbox     chan bus.Message
-	llmClient llm.Client
+	llmClient llm.LLMClient
 	uiStore   *ui.UIStore
 }
 
-func NewAnalyst(b *bus.Bus, llmClient llm.Client, ui *ui.UIStore) *Analyst {
+func NewAnalyst(b *bus.Bus, llmClient llm.LLMClient, ui *ui.UIStore) *Analyst {
 	return &Analyst{
 		bus:       b,
 		inbox:     make(chan bus.Message, 16),

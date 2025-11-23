@@ -1,0 +1,20 @@
+pipelines:
+  - name: pipeline_balance
+    description: "Consulta de saldo"
+    steps:
+      - tool: core_get_balance
+      - analyst: true
+
+  - name: pipeline_movements
+    description: "Consulta de movimientos"
+    steps:
+      - tool: core_get_movements
+      - analyst: true
+
+  - name: pipeline_bizum
+    description: "Envía un Bizum (demo)"
+    steps:
+      - tool: aml_risk_check
+      - tool: payments_bizum_send
+      - tool: send_notification
+      - analyst: true

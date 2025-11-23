@@ -1,0 +1,10 @@
+tools:
+  - name: send_notification
+    type: http
+    method: POST
+    url: "http://localhost:9000/mock/notifications/send"
+    mode: write
+    timeout: 3000
+    body:
+      user: "{{ .fromPhone }}"
+      message: "Se ha enviado un Bizum de {{ .amount }} a {{ .toPhone }}"

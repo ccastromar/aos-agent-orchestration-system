@@ -3,49 +3,79 @@ package llm
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
-// ExtractParams solicita al LLM que extraiga SOLO los parámetros necesarios
-// definidos en el YAML del intent.
-func ExtractParams(client Client, userMessage string, required []string) (map[string]string, error) {
-
-	if len(required) == 0 {
-		return map[string]string{}, nil
-	}
+func ExtractParams(client LLMClient, userMsg string, required []string) (map[string]string, error) {
+	paramsJSON, _ := json.Marshal(required)
 
 	prompt := fmt.Sprintf(`
-Extrae exclusivamente los siguientes parámetros del mensaje del usuario:
+Extract ONLY the required parameters from the user message.
 
-%v
+Requirements:
+- Output MUST be valid JSON.
+- JSON MUST contain EXACTLY these keys:
+  %s
+- NO markdown.
+- NO backticks.
+- NO explanation.
+- NO prefix.
+- NO suffix.
+- If missing, infer value from message.
 
-Devuelve ÚNICAMENTE un JSON plano con esos campos.
-Si un parámetro no aparece en el mensaje, deja su valor vacío.
-
-Ejemplo de formato:
-{
-  "amount": "20",
-  "toPhone": "Laura",
-  "concept": "regalo"
-}
-
-Mensaje del usuario:
-"%s"
-
-Solo responde con el JSON:
-`, required, userMessage)
+User message: "%s"
+`, string(paramsJSON), userMsg)
 
 	raw, err := client.Chat(prompt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error en LLM: %w", err)
 	}
 
-	raw = strings.TrimSpace(raw)
+	// Log para debug
+	fmt.Printf("RAW LLM OUTPUT: %s\n", raw)
 
+	clean := sanitizeLLMOutput(raw)
+
+	var tmp map[string]interface{}
+	if err := json.Unmarshal([]byte(clean), &tmp); err != nil {
+		return nil, fmt.Errorf("error parseando JSON de parámetros: %w; clean=%s", err, clean)
+	}
+
+	// Convertir todo a string
 	out := map[string]string{}
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, fmt.Errorf("error parseando JSON de parámetros: %w; raw=%s", err, raw)
+	for k, v := range tmp {
+		out[k] = fmt.Sprintf("%v", v)
 	}
 
 	return out, nil
+}
+
+func sanitizeLLMOutput(s string) string {
+	s = strings.TrimSpace(s)
+
+	// 1) remover cualquier bloque ```xxx ... ```
+	if strings.HasPrefix(s, "```") {
+		// quitar primera línea (```json o ```)
+		lines := strings.Split(s, "\n")
+		if len(lines) > 1 {
+			// quitar primera y última
+			s = strings.Join(lines[1:len(lines)-1], "\n")
+		}
+	}
+
+	// 2) regex para sacar el primer objeto JSON válido
+	re := regexp.MustCompile(`\{[\s\S]*\}`)
+	match := re.FindString(s)
+	if match != "" {
+		s = match
+	}
+
+	// 3) reemplazar comillas curvas por comillas normales
+	s = strings.ReplaceAll(s, "“", "\"")
+	s = strings.ReplaceAll(s, "”", "\"")
+	s = strings.ReplaceAll(s, "‘", "'")
+	s = strings.ReplaceAll(s, "’", "'")
+
+	return strings.TrimSpace(s)
 }

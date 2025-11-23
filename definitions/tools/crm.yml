@@ -1,0 +1,36 @@
+tools:
+  - name: crm_get_profile
+    type: http
+    method: GET
+    url: "http://localhost:9002/mock/crm/customer?customerId={{ .customerId }}"
+    mode: read
+    timeout: 3000
+
+  - name: crm_get_interactions
+    type: http
+    method: GET
+    url: "http://localhost:9002/mock/crm/interactions?customerId={{ .customerId }}&days={{ .days }}"
+    mode: read
+    timeout: 4000
+
+  - name: crm_create_ticket
+    type: http
+    method: POST
+    url: "http://localhost:9002/mock/crm/ticket"
+    mode: write
+    timeout: 4000
+    body:
+      customerId: "{{ .customerId }}"
+      subject: "{{ .subject }}"
+      priority: "{{ .priority }}"
+      channel: "{{ .channel }}"
+
+  - name: crm_update_lead_status
+    type: http
+    method: POST
+    url: "http://localhost:9002/mock/crm/lead/status"
+    mode: write
+    timeout: 3000
+    body:
+      leadId: "{{ .leadId }}"
+      newStatus: "{{ .newStatus }}"

@@ -7,8 +7,10 @@ import (
 )
 
 type DetectedIntent struct {
-	Type           string   `json:"intent"`
-	RequiredParams []string `json:"required_params"`
+	Type string `json:"intent"`
+	//RequiredParams []string          `json:"required_params"`
+	Params map[string]string // parámetros extraídos (puede empezar vacío)
+
 }
 
 type IntentSchema struct {
@@ -16,31 +18,77 @@ type IntentSchema struct {
 	Params      []string `json:"params"`
 }
 
+func DetectIntent(c LLMClient, text string, validIntents map[string]any) (*DetectedIntent, error) {
+	// Construimos la lista para el prompt
+	keys := make([]string, 0, len(validIntents))
+	for k := range validIntents {
+		keys = append(keys, k)
+	}
+	intentsJSON, _ := json.Marshal(keys)
+
+	prompt := fmt.Sprintf(`
+You are an intent classifier for a multi-domain Agent Orchestration System (AOS).
+
+Valid intents (choose exactly one, output must be EXACTLY the key):
+
+%s
+
+Rules:
+- Output ONLY the intent key (like devops.get_service_status).
+- Do NOT explain or add text.
+- Do NOT create new intents.
+- Prefer devops.* for infrastructure messages.
+- Prefer banking.* for financial messages.
+
+User message:
+"%s"
+`, intentsJSON, text)
+
+	raw, err := c.Chat(prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	clean := strings.TrimSpace(raw)
+
+	// Validamos
+	if _, ok := validIntents[clean]; !ok {
+		return nil, fmt.Errorf("DetectIntent JSON inválido: intent no reconocido; raw=%s", clean)
+	}
+
+	return &DetectedIntent{
+		Type:   clean,
+		Params: map[string]string{},
+	}, nil
+}
+
 // DetectIntent recibe el mensaje usuario + todos los intents del YAML
-func DetectIntent(client Client, userMsg string, intents map[string]IntentSchema) (*DetectedIntent, error) {
+func DetectIntentOld(client LLMClient, userMsg string, intents map[string]IntentSchema) (*DetectedIntent, error) {
 
 	// preparar JSON para el prompt (el LLM verá todos los intents disponibles)
 	intentsJSON, _ := json.Marshal(intents)
 
 	prompt := fmt.Sprintf(`
-Eres un clasificador estricto de intents bancarios.
+You are an intent classifier for a multi-domain Agent Orchestration System (AOS).
 
-Lista de intents disponibles:
+Here is the full list of valid intents you MUST choose from (and ONLY these):
+
 %s
 
-Devuelve EXCLUSIVAMENTE en JSON el intent que mejor coincide con el mensaje del usuario
-más la lista de parámetros necesarios.
+Your job:
+1. Read the user message.
+2. Select EXACTLY one intent.
+3. Answer ONLY with the intent key (e.g. "devops.get_service_status").
 
-Formato de respuesta:
-{
-  "intent": "banking.get_balance",
-  "required_params": ["accountId"]
-}
+Rules:
+- Do not invent intents.
+- Prefer devops.* for infrastructure/service questions.
+- Prefer banking.* ONLY when explicitly financial.
+- Do NOT rewrite or explain.
+- Output must be one of the valid intent keys.
 
-Mensaje del usuario:
+User message:
 "%s"
-
-Solo responde con JSON:
 `, intentsJSON, userMsg)
 
 	raw, err := client.Chat(prompt)

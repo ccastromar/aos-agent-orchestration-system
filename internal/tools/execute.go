@@ -5,67 +5,98 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/ccastromar/aos-banking-v2/internal/config"
 )
 
-// ExecuteTool ejecuta una tool HTTP usando el body ya renderizado.
-// callParams ya NO se usa para templating; solo se mantiene para compatibilidad.
-func ExecuteTool(t config.Tool, renderedBody map[string]string) (map[string]any, error) {
+// RenderTemplate aplica los parámetros a una plantilla Go.
+// func RenderTemplate(tpl string, params map[string]string) (string, error) {
+// 	if params == nil {
+// 		return tpl, nil
+// 	}
 
-	// Convertir el mapa renderizado a JSON
-	var payload []byte
-	var err error
+// 	t, err := template.New("tpl").Option("missingkey=default").Parse(tpl)
+// 	if err != nil {
+// 		return "", fmt.Errorf("error parseando template: %w", err)
+// 	}
 
-	if renderedBody != nil {
-		payload, err = json.Marshal(renderedBody)
+// 	var buf bytes.Buffer
+// 	if err := t.Execute(&buf, params); err != nil {
+// 		return "", fmt.Errorf("error ejecutando template: %w", err)
+// 	}
+
+// 	return buf.String(), nil
+// }
+
+// ExecuteTool ejecuta una tool HTTP, renderizando la URL y el body con parámetros.
+func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error) {
+
+	// 🔥 1. Renderizar la URL
+	finalURL, err := RenderTemplateString(t.URL, params)
+	if err != nil {
+		return nil, fmt.Errorf("error renderizando URL: %w", err)
+	}
+
+	// 🔥 2. Renderizar el body
+	bodyParams := map[string]string{}
+	for k, v := range t.Body {
+		rendered, err := RenderTemplateString(v, params)
 		if err != nil {
-			return nil, fmt.Errorf("error serializando body: %w", err)
+			return nil, fmt.Errorf("error renderizando body: %w", err)
+		}
+		bodyParams[k] = rendered
+	}
+
+	// 3. Serializar body
+	var payload []byte
+	if len(bodyParams) > 0 {
+		payload, err = json.Marshal(bodyParams)
+		if err != nil {
+			return nil, fmt.Errorf("error serializando body JSON: %w", err)
 		}
 	} else {
 		payload = []byte("{}")
 	}
 
-	// Crear request
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(payload))
+	log.Printf("[Execute][DEBUG] finalURL=%s", finalURL)
+
+	// 4. Crear request
+	req, err := http.NewRequest(t.Method, finalURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("error creando request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Timeout configurable
+	// 5. Enviar request
 	client := &http.Client{
 		Timeout: time.Duration(t.TimeoutMs) * time.Millisecond,
 	}
 
-	// Ejecutar request
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error ejecutando HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Leer respuesta
-	body, err := io.ReadAll(resp.Body)
+	// 6. Leer respuesta
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error leyendo respuesta: %w", err)
 	}
 
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("[HTTP %d] %s", resp.StatusCode, string(respBody))
 	}
 
-	var out map[string]any
-	if len(body) > 0 {
-		if err := json.Unmarshal(body, &out); err != nil {
-			return nil, fmt.Errorf("error parseando JSON: %w", err)
+	// 7. Parsear JSON
+	out := map[string]any{}
+	if len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, &out); err != nil {
+			return nil, fmt.Errorf("error parseando JSON respuesta: %w", err)
 		}
-	}
-
-	if out == nil {
-		out = make(map[string]any)
 	}
 
 	return out, nil

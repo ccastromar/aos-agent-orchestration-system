@@ -1,0 +1,15 @@
+tools:
+  - name: core_get_balance
+    type: http
+    method: GET
+    url: "http://localhost:9000/mock/core/balance?accountId={{ .accountId }}"
+    mode: read
+    timeout: 3000
+    
+  - name: core_get_movements
+    type: http
+    method: GET
+    url: "http://localhost:9000/mock/core/movements?accountId={{ .accountId }}&from={{ .from }}&to={{ .to }}"
+    mode: read
+    timeout: 5000
+    

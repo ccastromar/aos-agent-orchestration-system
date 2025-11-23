@@ -10,6 +10,9 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/mock/core/balance", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("MOCK URL:", r.URL.String())
+		log.Println("MOCK QUERY:", r.URL.Query())
+
 		accountId := r.URL.Query().Get("accountId")
 		resp := map[string]any{
 			"accountId": accountId,

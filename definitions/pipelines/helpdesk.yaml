@@ -1,0 +1,24 @@
+pipelines:
+  - name: pipeline_support_create
+    description: "Crear un ticket de soporte"
+    steps:
+      - tool: support_create_ticket
+      - analyst: true
+
+  - name: pipeline_support_status
+    description: "Consultar estado de un ticket"
+    steps:
+      - tool: support_get_ticket
+      - analyst: true
+
+  - name: pipeline_support_add_note
+    description: "Añadir una nota a un ticket"
+    steps:
+      - tool: support_add_note
+      - analyst: true
+
+  - name: pipeline_support_close
+    description: "Cerrar un ticket de soporte"
+    steps:
+      - tool: support_close_ticket
+      - analyst: true

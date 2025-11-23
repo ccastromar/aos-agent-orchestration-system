@@ -1,0 +1,18 @@
+intents:
+  - type: crm.get_customer_profile
+    description: "Consultar el perfil de un cliente por su identificador"
+    pipeline: pipeline_crm_profile
+    required_params:
+    - customerId
+
+  - type: crm.get_customer_interactions
+    description: "Ver las últimas interacciones con un cliente concreto"
+    pipeline: pipeline_crm_interactions
+
+  - type: crm.create_ticket
+    description: "Crear un ticket de soporte para un cliente"
+    pipeline: pipeline_crm_create_ticket
+
+  - type: crm.update_lead_status
+    description: "Actualizar el estado de un lead en el CRM"
+    pipeline: pipeline_crm_update_lead_status

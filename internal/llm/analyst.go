@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func SummarizeBankingResult(c Client, intentType string, rawResult map[string]any) (string, error) {
+func SummarizeBankingResult(c LLMClient, intentType string, rawResult map[string]any) (string, error) {
 	rawJSON, _ := json.Marshal(rawResult)
 
 	prompt := fmt.Sprintf(`

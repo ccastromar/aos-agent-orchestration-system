@@ -114,34 +114,44 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 		}
 
 		log.Printf("[Verifier] ejecutando tool=%s id=%s", toolName, id)
-
-		// Combinar parámetros → baseParams + WithParams
+		// Combinar parámetros → baseParams + WithParams (sin pisar los del Planner)
 		callParams := make(map[string]string)
+
+		// 1. Copiar params del Planner
 		for k, v := range baseParams {
 			callParams[k] = v
 		}
+
+		// 2. Rellenar defaults del pipeline SIN sobreescribir valores existentes
 		for k, v := range step.WithParams {
-			callParams[k] = v
+			if _, exists := callParams[k]; !exists || callParams[k] == "" {
+				if v != "" { // evitamos meter valores vacíos
+					callParams[k] = v
+				}
+			}
 		}
 
 		// -----------------------------------------------------
 		// RENDER TEMPLATE en Body
 		// -----------------------------------------------------
-		renderedBody, err := RenderTemplate(t.Body, callParams)
-		if err != nil {
-			log.Printf("[Verifier] error renderizando template tool=%s: %v", toolName, err)
-			storeResult(id, Result{
-				Status: "error",
-				Err:    err.Error(),
-			})
-			return
-		}
+		// renderedBody, err := tools.RenderTemplateMap(t.Body, callParams)
+		// if err != nil {
+		// 	log.Printf("[Verifier] error renderizando template tool=%s: %v", toolName, err)
+		// 	storeResult(id, Result{
+		// 		Status: "error",
+		// 		Err:    err.Error(),
+		// 	})
+		// 	return
+		// }
 
 		// Ejecutar tool con cuerpo renderizado
 		timer := logx.Start(id, "Verifier", "tool_"+toolName)
 		start := time.Now()
 
-		out, err := tools.ExecuteTool(t, renderedBody)
+		log.Printf("[Verifier][DEBUG] params finales para tool=%s id=%s params=%#v",
+			toolName, id, callParams)
+
+		out, err := tools.ExecuteTool(t, callParams)
 		timer.End()
 		duration := time.Since(start).String()
 

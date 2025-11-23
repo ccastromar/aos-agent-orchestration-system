@@ -3,21 +3,30 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/ccastromar/aos-banking-v2/internal/agent"
 	"github.com/ccastromar/aos-banking-v2/internal/bus"
 	"github.com/ccastromar/aos-banking-v2/internal/config"
+	"github.com/ccastromar/aos-banking-v2/internal/health"
 	"github.com/ccastromar/aos-banking-v2/internal/llm"
+	"github.com/ccastromar/aos-banking-v2/internal/runtime"
 	"github.com/ccastromar/aos-banking-v2/internal/ui"
 )
 
 func main() {
 	// Cargar configuración
-	cfg, err := config.LoadFromDir("config")
+	cfg, err := config.LoadFromDir("definitions")
 	if err != nil {
 		log.Fatalf("error cargando configuración: %v", err)
 	}
 	uiStore := ui.NewUIStore()
+	for name, tool := range cfg.Tools {
+		log.Printf("[CFG][CHECK] Tool %s URL loaded as: %s", name, tool.URL)
+		if strings.Contains(tool.URL, "<no value>") {
+			log.Printf("[CFG][ERROR] Tool %s tiene placeholder roto", name)
+		}
+	}
 
 	// Crear bus
 	b := bus.New()
@@ -46,13 +55,23 @@ func main() {
 	go verifier.Start()
 	go analyst.Start()
 
-	// HTTP API
+	r := &runtime.Runtime{
+		SpecsLoaded: true,
+		LLMClient:   llmClient,
+	}
+
 	mux := http.NewServeMux()
+
+	//HEALTH
+	mux.HandleFunc("/ready", health.NewReadyHandler(r))
+	mux.HandleFunc("/live", health.LiveHandler)
+
+	// HTTP API
 	apiAgent.RegisterHTTP(mux)
 	mux.HandleFunc("/ui", uiStore.HandleIndex)
 	mux.HandleFunc("/ui/task", uiStore.HandleTask)
 
-	log.Println("[AOS-BANKING v2] escuchando en :8080")
+	log.Println("[AOS v0.2] listening in port :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatalf("error en servidor HTTP: %v", err)
 	}
