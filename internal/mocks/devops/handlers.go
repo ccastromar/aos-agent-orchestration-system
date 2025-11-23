@@ -1,26 +1,20 @@
-package main
+package devops
 
 import (
 	"encoding/json"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 )
 
-func main() {
-	mux := http.NewServeMux()
+func RegisterHandlers(mux *http.ServeMux) {
 
 	mux.HandleFunc("/devops/status", handleStatus)
 	mux.HandleFunc("/devops/restart", handleRestart)
 	mux.HandleFunc("/devops/deploy", handleDeploy)
 	mux.HandleFunc("/devops/logs", handleLogs)
 
-	log.Println("[DEVOPS MOCK] listening on :9000")
-	if err := http.ListenAndServe(":9000", mux); err != nil {
-		log.Fatalf("server error: %v", err)
-	}
 }
 
 //

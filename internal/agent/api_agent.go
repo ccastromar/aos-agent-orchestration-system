@@ -1,13 +1,15 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/ccastromar/aos-banking-v2/internal/bus"
-	"github.com/ccastromar/aos-banking-v2/internal/ui"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/ui"
 )
 
 type APIAgent struct {
@@ -29,7 +31,19 @@ func (a *APIAgent) Inbox() chan bus.Message {
 	return a.inbox
 }
 
-func (a *APIAgent) Start() {
+func (a *APIAgent) Start(ctx context.Context) error {
+	for {
+		select {
+		case msg := <-a.inbox:
+			a.dispatch(msg)
+
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (a *APIAgent) dispatch(msg bus.Message) {
 	for msg := range a.inbox {
 		log.Printf("[API] mensaje interno ignorado: %#v", msg)
 	}
@@ -73,7 +87,7 @@ func (a *APIAgent) handleAsk(w http.ResponseWriter, r *http.Request) {
 
 	id := randomID()
 
-	log.Printf("[Api] nueva petición id=%s message='%s'", id, req.Message)
+	logx.Info("Api", "new request id=%s message='%s'", id, req.Message)
 	a.uiStore.AddEvent(id, "Api", "request", req.Message, "")
 
 	// Enviar al inspector con el message correcto

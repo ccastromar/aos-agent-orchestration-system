@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ccastromar/aos-banking-v2/internal/config"
-	"github.com/ccastromar/aos-banking-v2/internal/tools"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/tools"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,7 +1,7 @@
 package runtime
 
 import (
-	"github.com/ccastromar/aos-banking-v2/internal/llm"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
 )
 
 type Runtime struct {

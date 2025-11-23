@@ -1,6 +1,6 @@
-module github.com/ccastromar/aos-banking-v2
+module github.com/ccastromar/aos-agent-orchestration-system
 
-go 1.22
+go 1.24.0
 
 require (
 	github.com/google/uuid v1.6.0
@@ -11,4 +11,5 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/sync v0.18.0
 )

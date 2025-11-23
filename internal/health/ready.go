@@ -3,23 +3,23 @@ package health
 import (
 	"net/http"
 
-	"github.com/ccastromar/aos-banking-v2/internal/runtime"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/runtime"
 )
 
-func NewReadyHandler(rt *runtime.Runtime) http.HandlerFunc {
+func ReadyHandler(rt *runtime.Runtime) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		if !rt.SpecsLoaded {
-			http.Error(w, "specs not loaded", 503)
+			http.Error(w, "specs not loaded", http.StatusServiceUnavailable)
 			return
 		}
 
 		if err := rt.LLMClient.Ping(); err != nil {
-			http.Error(w, "llm unreachable", 503)
+			http.Error(w, "llm unreachable", http.StatusServiceUnavailable)
 			return
 		}
 
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ready"}`))
 	}
 }

@@ -1,14 +1,14 @@
 package agent
 
 import (
-	"log"
+	"context"
 
-	"github.com/ccastromar/aos-banking-v2/internal/bus"
-	"github.com/ccastromar/aos-banking-v2/internal/config"
-	"github.com/ccastromar/aos-banking-v2/internal/guard"
-	"github.com/ccastromar/aos-banking-v2/internal/llm"
-	"github.com/ccastromar/aos-banking-v2/internal/logx"
-	"github.com/ccastromar/aos-banking-v2/internal/ui"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/guard"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/ui"
 )
 
 type Planner struct {
@@ -32,54 +32,49 @@ func NewPlanner(b *bus.Bus, cfg *config.Config, llmClient llm.LLMClient, ui *ui.
 func (p *Planner) Inbox() chan bus.Message {
 	return p.inbox
 }
+func (p *Planner) Start(ctx context.Context) error {
+	for {
+		select {
+		case msg := <-p.inbox:
+			p.dispatch(msg)
 
-func (p *Planner) Start() {
-	for msg := range p.inbox {
-		switch msg.Type {
-		case "detect_intent":
-			p.handleDetectIntent(msg)
-
-		case "new_task":
-			// Esto viene del Inspector
-			id := msg.Payload["id"].(string)
-			log.Printf("[Planner][DEBUG] recibi new_task id=%s -> redirigiendo a detect_intent", id)
-
-			p.bus.Send("planner", bus.Message{
-				Type: "detect_intent",
-				Payload: map[string]any{
-					"id":      id,
-					"message": msg.Payload["message"],
-					"mode":    msg.Payload["mode"],
-				},
-			})
-
-		default:
-			log.Printf("[Planner] mensaje desconocido: %#v", msg)
+		case <-ctx.Done():
+			return nil
 		}
 	}
+}
+
+func (p *Planner) dispatch(msg bus.Message) {
+	switch msg.Type {
+	case "detect_intent":
+		p.handleDetectIntent(msg)
+
+	case "new_task":
+		// Esto viene del Inspector
+		id := msg.Payload["id"].(string)
+		logx.Debug("Planner", "got new_task id=%s -> forward to detect_intent", id)
+
+		p.bus.Send("planner", bus.Message{
+			Type: "detect_intent",
+			Payload: map[string]any{
+				"id":      id,
+				"message": msg.Payload["message"],
+				"mode":    msg.Payload["mode"],
+			},
+		})
+
+	default:
+		logx.Warn("Planner", "unknown message: %#v", msg)
+	}
+
 }
 
 func (p *Planner) handleDetectIntent(msg bus.Message) {
 	id := msg.Payload["id"].(string)
 	userMsg := msg.Payload["message"].(string)
 
-	log.Printf("[Planner][DEBUG] detect_intent id=%s msg='%s'", id, userMsg)
+	logx.Debug("Planner", "detect_intent id=%s msg='%s'", id, userMsg)
 
-	// Convertimos config.Intents → schema para el LLM
-	// intentSchemas := make(map[string]llm.IntentSchema)
-	// for intentName, it := range p.cfg.Intents {
-	// 	intentSchemas[intentName] = llm.IntentSchema{
-	// 		Description: it.Description,
-	// 		Params:      it.RequiredParams,
-	// 	}
-	// }
-
-	// timer := logx.Start(id, "Planner", "DetectIntentLLM")
-
-	// // 🔥 1. Detectar intent con LLM
-	// detected, err := llm.DetectIntent(p.llmClient, userMsg, intentSchemas)
-	// timer.End()
-	// Preparamos solo la lista de claves de intents
 	intentKeys := make(map[string]any)
 	for k := range p.cfg.Intents {
 		intentKeys[k] = true
@@ -89,19 +84,13 @@ func (p *Planner) handleDetectIntent(msg bus.Message) {
 	detected, err := llm.DetectIntent(p.llmClient, userMsg, intentKeys)
 	timer.End()
 	if err != nil {
-		log.Printf("[Planner][%s] ERROR detectando intent: %v", id, err)
+		logx.Error("Planner", "[%s] ERROR detecting intent: %v", id, err)
 		//p.ui.AddEvent(id, "Planner", "intent_error", err.Error(), timer.Duration())
 		storeResult(id, Result{Status: "error", Err: err.Error()})
 		return
 	}
 
-	// if err != nil {
-	// 	log.Printf("[Planner] ERROR detectando intent: %v", err)
-	// 	p.storeError(id, "no se pudo detectar intent")
-	// 	return
-	// }
-
-	log.Printf("[Planner][DEBUG] intent bruto LLM='%s'", detected.Type)
+	logx.Debug("Planner", "raw intent LLM='%s'", detected.Type)
 
 	intentCfg, ok := p.cfg.Intents[detected.Type]
 	if !ok {
@@ -117,23 +106,6 @@ func (p *Planner) handleDetectIntent(msg bus.Message) {
 		return
 	}
 
-	// // 🔥 3. Extraer parámetros si el intent los requiere
-	// params := map[string]string{}
-	// if len(detected.RequiredParams) > 0 {
-	// 	timer := logx.Start(id, "Planner", "ExtractParams")
-	// 	extracted, err := llm.ExtractParams(p.llmClient, userMsg, detected.RequiredParams)
-	// 	timer.End()
-
-	// 	if err != nil {
-	// 		log.Printf("[Planner] ERROR extrayendo parámetros: %v", err)
-	// 		p.storeError(id, "error extrayendo parámetros")
-	// 		return
-	// 	} else {
-	// 		params = extracted
-	// 	}
-
-	// }
-	// 🔥 3. Extraer parámetros si el intent los requiere
 	params := map[string]string{}
 
 	// Traemos los required params del YAML
@@ -145,7 +117,7 @@ func (p *Planner) handleDetectIntent(msg bus.Message) {
 		timer.End()
 
 		if err != nil {
-			log.Printf("[Planner][%s] ERROR extrayendo parámetros: %v", id, err)
+			logx.Error("Planner", "[%s] ERROR extracting params: %v", id, err)
 			p.storeError(id, "error extrayendo parámetros")
 			return
 		}
@@ -163,7 +135,7 @@ func (p *Planner) handleDetectIntent(msg bus.Message) {
 		return
 	}
 
-	log.Printf("[Planner] id=%s intent=%s pipeline=%s params=%v",
+	logx.Info("Planner", "id=%s intent=%s pipeline=%s params=%v",
 		id, detected.Type, pipeName, params)
 	p.uiStore.AddEvent(id, "Planner", "intent", detected.Type, "")
 

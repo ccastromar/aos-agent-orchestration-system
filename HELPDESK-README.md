@@ -32,32 +32,32 @@ To use:
 2. Ensure your AOS config loader points at `config/` (it will load `crm.yml` automatically).
 3. Ask things like:
 
-   curl -X POST http://localhost:8080/ask \
+   ```curl -X POST http://localhost:8080/ask \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Crea un ticket urgente porque la web no funciona nada bien"
-  }' | jq
+  }' | jq```
 
-curl -X POST http://localhost:8080/ask \
+```curl -X POST http://localhost:8080/ask \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Muéstrame el estado del ticket TCK-ABC123"
-  }' | jq
+  }' | jq```
 
-curl -X POST http://localhost:8080/ask \
+```curl -X POST http://localhost:8080/ask \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Añade una nota al ticket TCK-999222 diciendo que ya revisé los logs"
-  }' | jq
+  }' | jq```
 
-curl -X POST http://localhost:8080/ask \
+```curl -X POST http://localhost:8080/ask \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Cierra el ticket TCK-123456 porque el usuario dice que ya está resuelto"
-  }' | jq
+  }' | jq```
 
-curl -X POST http://localhost:8080/ask \
+```curl -X POST http://localhost:8080/ask \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Tengo un cliente cabreadísimo, ábrele un ticket urgentísimo explicando que no puede pagar"
-  }' | jq
+  }' | jq```

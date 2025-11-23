@@ -1,53 +1,47 @@
-package main
+package helpdesk
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
 
-func main() {
-	mux := http.NewServeMux()
-
-	// Crear ticket
-	mux.HandleFunc("/support/ticket", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			handleCreateTicket(w, r)
-			return
-		}
-		if r.Method == "GET" {
-			handleGetTicket(w, r)
-			return
-		}
-
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	})
-
-	// Añadir nota
-	mux.HandleFunc("/support/ticket/note", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			handleAddNote(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	})
-
-	// Cerrar ticket
-	mux.HandleFunc("/support/ticket/close", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			handleCloseTicket(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	})
-
-	log.Println("[mock-support] listening on :9003")
-	log.Fatal(http.ListenAndServe(":9003", mux))
+func RegisterHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/support/ticket", manageTicker)
+	mux.HandleFunc("/support/ticket/note", ticketNote)
+	mux.HandleFunc("/support/ticket/close", ticketClose)
 }
 
-// ----------------------------
-// Handlers
-// ----------------------------
+// Crear ticket
+func manageTicker(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		handleCreateTicket(w, r)
+		return
+	}
+	if r.Method == "GET" {
+		handleGetTicket(w, r)
+		return
+	}
+
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// Añadir nota
+func ticketNote(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		handleAddNote(w, r)
+		return
+	}
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// Cerrar ticket
+func ticketClose(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		handleCloseTicket(w, r)
+		return
+	}
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
 
 func handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 	var body map[string]string

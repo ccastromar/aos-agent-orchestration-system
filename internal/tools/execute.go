@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ccastromar/aos-banking-v2/internal/config"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
 )
 
 // RenderTemplate aplica los parámetros a una plantilla Go.

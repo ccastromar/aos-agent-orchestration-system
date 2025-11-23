@@ -1,15 +1,15 @@
 package agent
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"time"
 
-	"github.com/ccastromar/aos-banking-v2/internal/bus"
-	"github.com/ccastromar/aos-banking-v2/internal/config"
-	"github.com/ccastromar/aos-banking-v2/internal/logx"
-	"github.com/ccastromar/aos-banking-v2/internal/tools"
-	"github.com/ccastromar/aos-banking-v2/internal/ui"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/tools"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/ui"
 )
 
 type Verifier struct {
@@ -32,14 +32,24 @@ func (v *Verifier) Inbox() chan bus.Message {
 	return v.inbox
 }
 
-func (v *Verifier) Start() {
-	for msg := range v.inbox {
-		switch msg.Type {
-		case "run_pipeline":
-			v.handleRunPipeline(msg)
-		default:
-			log.Printf("[Verifier] mensaje desconocido: %#v", msg)
+func (v *Verifier) Start(ctx context.Context) error {
+	for {
+		select {
+		case msg := <-v.inbox:
+			v.dispatch(msg)
+
+		case <-ctx.Done():
+			return nil
 		}
+	}
+}
+
+func (v *Verifier) dispatch(msg bus.Message) {
+	switch msg.Type {
+	case "run_pipeline":
+		v.handleRunPipeline(msg)
+	default:
+		logx.Warn("Verifier", "unknown message: %#v", msg)
 	}
 }
 
@@ -78,7 +88,7 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 		}
 	}
 
-	log.Printf("[Verifier] ejecutando pipeline=%s id=%s intent=%s params=%#v",
+	logx.Info("Verifier", "executing pipeline=%s id=%s intent=%s params=%#v",
 		pipe.Name, id, intentType, baseParams)
 
 	stepResults := make(map[string]any)
@@ -88,9 +98,9 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 	// ---------------------------------------------------------
 	for _, step := range pipe.Steps {
 
-		// Paso ANALYST → directo al Analyst
+		// Step ANALYST → directo al Analyst
 		if step.Analyst {
-			log.Printf("[Verifier] paso analyst=true id=%s -> llamando Analyst", id)
+			logx.Debug("Verifier", "analyst=true id=%s -> calling Analyst", id)
 			v.bus.Send("analyst", bus.Message{
 				Type: "summarize",
 				Payload: map[string]any{
@@ -102,7 +112,7 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 			return
 		}
 
-		// Paso TOOL
+		// Step TOOL
 		toolName := step.Tool
 		t, ok := v.cfg.Tools[toolName]
 		if !ok {
@@ -113,7 +123,7 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 			return
 		}
 
-		log.Printf("[Verifier] ejecutando tool=%s id=%s", toolName, id)
+		logx.Info("Verifier", "executing tool=%s id=%s", toolName, id)
 		// Combinar parámetros → baseParams + WithParams (sin pisar los del Planner)
 		callParams := make(map[string]string)
 
@@ -131,24 +141,11 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 			}
 		}
 
-		// -----------------------------------------------------
-		// RENDER TEMPLATE en Body
-		// -----------------------------------------------------
-		// renderedBody, err := tools.RenderTemplateMap(t.Body, callParams)
-		// if err != nil {
-		// 	log.Printf("[Verifier] error renderizando template tool=%s: %v", toolName, err)
-		// 	storeResult(id, Result{
-		// 		Status: "error",
-		// 		Err:    err.Error(),
-		// 	})
-		// 	return
-		// }
-
 		// Ejecutar tool con cuerpo renderizado
 		timer := logx.Start(id, "Verifier", "tool_"+toolName)
 		start := time.Now()
 
-		log.Printf("[Verifier][DEBUG] params finales para tool=%s id=%s params=%#v",
+		logx.Debug("Verifier", "params for the tool=%s id=%s params=%#v",
 			toolName, id, callParams)
 
 		out, err := tools.ExecuteTool(t, callParams)
@@ -158,7 +155,7 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 		v.uiStore.AddEvent(id, "Verifier", "tool "+t.Name, "ok", duration)
 
 		if err != nil {
-			log.Printf("[Verifier] error ejecutando tool=%s: %v", toolName, err)
+			logx.Error("Verifier", "error executing tool=%s: %v", toolName, err)
 			storeResult(id, Result{
 				Status: "error",
 				Err:    err.Error(),

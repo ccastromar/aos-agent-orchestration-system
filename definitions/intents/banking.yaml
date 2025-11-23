@@ -1,0 +1,43 @@
+intents:
+  - type: banking.get_balance
+    description: >
+      INTENT: "Consultar el saldo de una cuenta"
+    pipeline: pipeline_balance
+    required_params:
+      - accountId
+    allow_dangerous: false
+    requires_amount: false
+    requires_phone: false
+    max_amount: 0
+    shadow_mode: false
+  - type: banking.get_movements
+    description: >
+      INTENT: Consulta de movimientos
+      Obtener la lista de movimientos bancarios de una cuenta. 
+      Incluye ingresos, gastos, transferencias y fechas. 
+      Úsalo cuando el usuario pregunte por "movimientos", "qué ha pasado en mi cuenta",
+      "últimos cargos", "qué se ha pagado", etc.
+    pipeline: pipeline_movements
+    required_params:
+      - accountId
+    allow_dangerous: false
+    requires_amount: false
+    requires_phone: false
+    max_amount: 0
+    shadow_mode: false    
+  - type: banking.send_bizum
+    description: >
+      INTENT: Envio de dinero por Bizum
+      Enviar dinero a un contacto mediante Bizum. 
+      Úsalo cuando el usuario quiera "hacer un Bizum", "enviar dinero",
+      "mandar X euros a alguien", etc.
+    pipeline: pipeline_bizum
+    required_params:
+      - amount
+      - toPhone
+      - concept
+    allow_dangerous: true
+    requires_amount: true       # amount obligatorio
+    requires_phone: true        # toPhone obligatorio
+    max_amount: 10              # límite configurable
+    shadow_mode: false      

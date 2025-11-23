@@ -1,12 +1,12 @@
 package agent
 
 import (
-	"log"
+	"context"
 
-	"github.com/ccastromar/aos-banking-v2/internal/bus"
-	"github.com/ccastromar/aos-banking-v2/internal/llm"
-	"github.com/ccastromar/aos-banking-v2/internal/logx"
-	"github.com/ccastromar/aos-banking-v2/internal/ui"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/ui"
 )
 
 type Analyst struct {
@@ -28,16 +28,27 @@ func NewAnalyst(b *bus.Bus, llmClient llm.LLMClient, ui *ui.UIStore) *Analyst {
 func (a *Analyst) Inbox() chan bus.Message {
 	return a.inbox
 }
+func (a *Analyst) Start(ctx context.Context) error {
+	for {
+		select {
+		case msg := <-a.inbox:
+			a.dispatch(msg)
 
-func (a *Analyst) Start() {
-	for msg := range a.inbox {
-		switch msg.Type {
-		case "summarize":
-			a.handleSummarize(msg)
-		default:
-			log.Printf("[Analyst] mensaje desconocido: %#v", msg)
+		case <-ctx.Done():
+			return nil
 		}
 	}
+}
+
+func (a *Analyst) dispatch(msg bus.Message) {
+
+	switch msg.Type {
+	case "summarize":
+		a.handleSummarize(msg)
+	default:
+		logx.Warn("Analyst", "unknown message: %#v", msg)
+	}
+
 }
 
 func (a *Analyst) handleSummarize(msg bus.Message) {
@@ -47,7 +58,7 @@ func (a *Analyst) handleSummarize(msg bus.Message) {
 
 	raw, ok := rawAny.(map[string]any)
 	if !ok {
-		log.Printf("[Analyst] rawResult inválido para id=%s", id)
+		logx.Error("Analyst", "rawResult invalid for id=%s", id)
 		storeResult(id, Result{
 			Status: "error",
 			Err:    "resultado bruto inválido",
@@ -55,15 +66,15 @@ func (a *Analyst) handleSummarize(msg bus.Message) {
 		return
 	}
 
-	log.Printf("[Analyst] pidiendo summary al LLM...")
-	log.Printf("[Analyst] rawResult recibido: %#v", raw)
+	logx.Info("Analyst", "requesting summary to the LLM...")
+	logx.Debug("Analyst", "rawResult: %#v", raw)
 
 	timer := logx.Start(id, "Analyst", "SummarizeLLM")
 	summary, err := llm.SummarizeBankingResult(a.llmClient, intentType, raw)
 	timer.End()
 
 	if err != nil {
-		log.Printf("[Analyst] error llamando al LLM: %v", err)
+		logx.Error("Analyst", "error calling to the LLM: %v", err)
 		// Degradamos de forma elegante: devolvemos solo el raw.
 		storeResult(id, Result{
 			Status: "ok",
@@ -73,7 +84,7 @@ func (a *Analyst) handleSummarize(msg bus.Message) {
 		})
 		return
 	}
-	log.Printf("[Analyst] summary generado: %s", summary)
+	logx.Info("Analyst", "summary generated: %s", summary)
 	a.uiStore.AddEvent(id, "Analyst", "summary", "summary LLM generado", "")
 
 	storeResult(id, Result{

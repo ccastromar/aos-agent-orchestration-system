@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	"github.com/ccastromar/aos-banking-v2/internal/llm"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
 	"github.com/stretchr/testify/require"
 )
 

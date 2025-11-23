@@ -1,9 +1,10 @@
 package agent
 
 import (
-	"log"
+	"context"
 
-	"github.com/ccastromar/aos-banking-v2/internal/bus"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
 )
 
 type Inspector struct {
@@ -22,25 +23,36 @@ func (i *Inspector) Inbox() chan bus.Message {
 	return i.inbox
 }
 
-func (i *Inspector) Start() {
-	for msg := range i.inbox {
-		switch msg.Type {
-		case "new_task":
-			id := msg.Payload["id"].(string)
-			mode, _ := msg.Payload["mode"].(string)
-			log.Printf("[Inspector] nueva tarea id=%s mode=%s", id, mode)
+func (i *Inspector) Start(ctx context.Context) error {
+	for {
+		select {
+		case msg := <-i.inbox:
+			i.dispatch(msg)
 
-			i.bus.Send("planner", bus.Message{
-				Type: "detect_intent",
-				Payload: map[string]any{
-					"id":      id,
-					"message": msg.Payload["message"],
-					"mode":    mode,
-				},
-			})
-
-		default:
-			log.Printf("[Inspector] mensaje desconocido: %#v", msg)
+		case <-ctx.Done():
+			return nil
 		}
 	}
+}
+
+func (i *Inspector) dispatch(msg bus.Message) {
+	switch msg.Type {
+	case "new_task":
+		id := msg.Payload["id"].(string)
+		mode, _ := msg.Payload["mode"].(string)
+		logx.Info("Inspector", "new task id=%s mode=%s", id, mode)
+
+		i.bus.Send("planner", bus.Message{
+			Type: "detect_intent",
+			Payload: map[string]any{
+				"id":      id,
+				"message": msg.Payload["message"],
+				"mode":    mode,
+			},
+		})
+
+	default:
+		logx.Warn("Inspector", "unknown message: %#v", msg)
+	}
+
 }

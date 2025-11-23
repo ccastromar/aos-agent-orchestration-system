@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
 	"gopkg.in/yaml.v3"
 )
 
@@ -74,7 +75,8 @@ func LoadFromDir(base string) (*Config, error) {
 func loadToolsDir(dir string, cfg *Config) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("leyendo tools dir: %w", err)
+		logx.Error("Config", "loading tools dir: %v", err)
+		return fmt.Errorf("loading tools dir: %w", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -89,7 +91,8 @@ func loadToolsDir(dir string, cfg *Config) error {
 			Tools []Tool `yaml:"tools"`
 		}
 		if err := yaml.Unmarshal(data, &raw); err != nil {
-			return fmt.Errorf("parseando %s: %w", path, err)
+			logx.Error("Config", "parsing tools dir: %v", err)
+			return fmt.Errorf("parsing %s: %w", path, err)
 		}
 		for _, t := range raw.Tools {
 			cfg.Tools[t.Name] = t
@@ -101,7 +104,8 @@ func loadToolsDir(dir string, cfg *Config) error {
 func loadPipelinesDir(dir string, cfg *Config) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("leyendo pipelines dir: %w", err)
+		logx.Error("Config", "loading pipelines dir: %v", err)
+		return fmt.Errorf("loading pipelines dir: %w", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -116,7 +120,8 @@ func loadPipelinesDir(dir string, cfg *Config) error {
 			Pipelines []Pipeline `yaml:"pipelines"`
 		}
 		if err := yaml.Unmarshal(data, &raw); err != nil {
-			return fmt.Errorf("parseando %s: %w", path, err)
+			logx.Error("Config", "parsing pipelines dir: %v", err)
+			return fmt.Errorf("parsing %s: %w", path, err)
 		}
 		for _, p := range raw.Pipelines {
 			cfg.Pipelines[p.Name] = p
@@ -128,7 +133,8 @@ func loadPipelinesDir(dir string, cfg *Config) error {
 func loadIntentsDir(dir string, cfg *Config) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("leyendo intents dir: %w", err)
+		logx.Error("Config", "loading intents dir: %v", err)
+		return fmt.Errorf("loading intents dir: %w", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -143,7 +149,8 @@ func loadIntentsDir(dir string, cfg *Config) error {
 			Intents []Intent `yaml:"intents"`
 		}
 		if err := yaml.Unmarshal(data, &raw); err != nil {
-			return fmt.Errorf("parseando %s: %w", path, err)
+			logx.Error("Config", "parsing tools dir: %v", err)
+			return fmt.Errorf("parsing %s: %w", path, err)
 		}
 		for _, it := range raw.Intents {
 			cfg.Intents[it.Type] = it

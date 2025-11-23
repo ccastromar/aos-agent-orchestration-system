@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/ccastromar/aos-banking-v2/internal/config"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
 )
 
 // ---- helpers internos ----

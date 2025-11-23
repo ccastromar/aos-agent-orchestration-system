@@ -27,7 +27,7 @@ func DetectIntent(c LLMClient, text string, validIntents map[string]any) (*Detec
 	intentsJSON, _ := json.Marshal(keys)
 
 	prompt := fmt.Sprintf(`
-You are an intent classifier for a multi-domain Agent Orchestration System (AOS).
+You are an intent classifier for a multi-domain (banking, devops, CRM, Helpdesk) Agent Orchestration System (AOS).
 
 Valid intents (choose exactly one, output must be EXACTLY the key):
 
@@ -39,6 +39,8 @@ Rules:
 - Do NOT create new intents.
 - Prefer devops.* for infrastructure messages.
 - Prefer banking.* for financial messages.
+- Prefer crm.* for customer relationship messages.
+- Prefer helpdesk.* for support-related messages.
 
 User message:
 "%s"

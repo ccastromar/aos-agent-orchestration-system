@@ -1,24 +1,16 @@
-package main
+package crm
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
 
-func main() {
-	mux := http.NewServeMux()
+func RegisterHandlers(mux *http.ServeMux) {
 
 	mux.HandleFunc("/mock/crm/customer", handleCustomerProfile)
 	mux.HandleFunc("/mock/crm/interactions", handleCustomerInteractions)
 	mux.HandleFunc("/mock/crm/ticket", handleCreateTicket)
 	mux.HandleFunc("/mock/crm/lead/status", handleUpdateLeadStatus)
-
-	addr := ":9002"
-	log.Printf("[MOCK-CRM] escuchando en %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatalf("error arrancando mock CRM: %v", err)
-	}
 }
 
 func handleCustomerProfile(w http.ResponseWriter, r *http.Request) {

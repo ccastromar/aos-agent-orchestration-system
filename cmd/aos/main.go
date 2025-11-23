@@ -1,78 +1,28 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net/http"
-	"strings"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/ccastromar/aos-banking-v2/internal/agent"
-	"github.com/ccastromar/aos-banking-v2/internal/bus"
-	"github.com/ccastromar/aos-banking-v2/internal/config"
-	"github.com/ccastromar/aos-banking-v2/internal/health"
-	"github.com/ccastromar/aos-banking-v2/internal/llm"
-	"github.com/ccastromar/aos-banking-v2/internal/runtime"
-	"github.com/ccastromar/aos-banking-v2/internal/ui"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/app"
 )
 
 func main() {
-	// Cargar configuración
-	cfg, err := config.LoadFromDir("definitions")
+
+	ctx, stop := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	a, err := app.New()
 	if err != nil {
-		log.Fatalf("error cargando configuración: %v", err)
-	}
-	uiStore := ui.NewUIStore()
-	for name, tool := range cfg.Tools {
-		log.Printf("[CFG][CHECK] Tool %s URL loaded as: %s", name, tool.URL)
-		if strings.Contains(tool.URL, "<no value>") {
-			log.Printf("[CFG][ERROR] Tool %s tiene placeholder roto", name)
-		}
+		log.Fatalf("error initializing app: %v", err)
 	}
 
-	// Crear bus
-	b := bus.New()
-
-	// Cliente LLM (Ollama + qwen3:8b)
-	llmClient := llm.NewOllamaClient("http://localhost:11434", "qwen3:0.6b")
-
-	// Crear agentes
-	apiAgent := agent.NewAPIAgent(b, uiStore)
-	inspector := agent.NewInspector(b)
-	planner := agent.NewPlanner(b, cfg, llmClient, uiStore)
-	verifier := agent.NewVerifier(b, cfg, uiStore)
-	analyst := agent.NewAnalyst(b, llmClient, uiStore)
-
-	// Registrar en bus
-	b.Subscribe("api", apiAgent.Inbox())
-	b.Subscribe("inspector", inspector.Inbox())
-	b.Subscribe("planner", planner.Inbox())
-	b.Subscribe("verifier", verifier.Inbox())
-	b.Subscribe("analyst", analyst.Inbox())
-
-	// Lanzar agentes
-	go apiAgent.Start()
-	go inspector.Start()
-	go planner.Start()
-	go verifier.Start()
-	go analyst.Start()
-
-	r := &runtime.Runtime{
-		SpecsLoaded: true,
-		LLMClient:   llmClient,
+	if err := a.Run(ctx); err != nil {
+		log.Fatalf("error running app: %v", err)
 	}
 
-	mux := http.NewServeMux()
-
-	//HEALTH
-	mux.HandleFunc("/ready", health.NewReadyHandler(r))
-	mux.HandleFunc("/live", health.LiveHandler)
-
-	// HTTP API
-	apiAgent.RegisterHTTP(mux)
-	mux.HandleFunc("/ui", uiStore.HandleIndex)
-	mux.HandleFunc("/ui/task", uiStore.HandleTask)
-
-	log.Println("[AOS v0.2] listening in port :8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Fatalf("error en servidor HTTP: %v", err)
-	}
 }
