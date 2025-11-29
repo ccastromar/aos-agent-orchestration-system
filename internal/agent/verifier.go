@@ -148,7 +148,13 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 		logx.Debug("Verifier", "params for the tool=%s id=%s params=%#v",
 			toolName, id, callParams)
 
-		out, err := tools.ExecuteTool(t, callParams)
+  // obtain task context if present
+  taskCtx, _ := GetTaskContext(id)
+  if taskCtx == nil {
+      taskCtx = context.Background()
+  }
+
+  out, err := tools.ExecuteTool(taskCtx, t, callParams)
 		timer.End()
 		duration := time.Since(start).String()
 

@@ -1,15 +1,16 @@
 package tools
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"time"
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "io"
+    "log"
+    "net/http"
+    "time"
 
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/config"
 )
 
 // RenderTemplate aplica los parámetros a una plantilla Go.
@@ -32,7 +33,7 @@ import (
 // }
 
 // ExecuteTool ejecuta una tool HTTP, renderizando la URL y el body con parámetros.
-func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error) {
+func ExecuteTool(ctx context.Context, t config.Tool, params map[string]string) (map[string]any, error) {
 
 	// 🔥 1. Renderizar la URL
 	finalURL, err := RenderTemplateString(t.URL, params)
@@ -70,7 +71,8 @@ func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error
 	log.Printf("[Execute][DEBUG] finalURL=%s", finalURL)
 
 	// 4. Crear request
-	req, err := http.NewRequest(t.Method, finalURL, bytes.NewReader(payload))
+ if ctx == nil { ctx = context.Background() }
+ req, err := http.NewRequestWithContext(ctx, t.Method, finalURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("error creando request: %w", err)
 	}
@@ -84,9 +86,18 @@ func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error
  }
 
 	// 5. Enviar request
-	client := &http.Client{
-		Timeout: time.Duration(t.TimeoutMs) * time.Millisecond,
-	}
+ // compute effective timeout: min(ctx deadline leftover, tool timeout)
+    effTimeout := time.Duration(t.TimeoutMs) * time.Millisecond
+    if deadline, ok := ctx.Deadline(); ok {
+        rem := time.Until(deadline)
+        if rem > 0 && (effTimeout == 0 || rem < effTimeout) {
+            effTimeout = rem
+        }
+    }
+    if effTimeout <= 0 {
+        effTimeout = 30 * time.Second
+    }
+    client := &http.Client{ Timeout: effTimeout }
 
 	resp, err := client.Do(req)
 	if err != nil {

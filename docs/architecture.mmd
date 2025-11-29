@@ -1,0 +1,57 @@
+flowchart LR
+  user[User/Client]
+  subgraph app[App]
+    http[HTTP Server\ninternal/app/http.go]
+    api[APIAgent\ninternal/agent/api_agent.go]
+    bus[(Bus\ninternal/bus/bus.go)]
+    inspector[Inspector]
+    planner[Planner\nreads definitions]
+    verifier[Verifier guard rails]
+    analyst[Analyst\nLLM-assisted]
+    uistore[UI Store\n/templates/ui/*]
+  end
+
+  subgraph cfg[Config]
+    ytools[definitions/tools/*.yaml]
+    ypipes[definitions/pipelines/*.yaml]
+    yintents[definitions/intents/*.yaml]
+    env[Env .env → internal/config/env.go]
+  end
+
+  subgraph llm[LLM]
+    ollama[OllamaClient\ninternal/llm/ollama_client.go]
+    openai[OpenAIClient\ninternal/llm/openai_client.go]
+  end
+
+  subgraph ext[External Services]
+    banking[Banking/Mocks\ninternal/mocks/*]
+  end
+
+  user --> http
+  http --> api
+  api --> bus
+  bus --> inspector
+  bus --> planner
+  bus --> verifier
+  bus --> analyst
+
+  planner -->|selects steps| toolsrunner
+
+  subgraph toolsrunner[Tools Runner]
+    execute[Execute HTTP tools\ninternal/tools/execute.go]
+    renderer[Render templates\ninternal/tools/renderer.go]
+  end
+
+  execute -->|HTTP| banking
+  renderer --> execute
+
+  analyst --> llm
+  llm --> ollama
+  llm --> openai
+
+  http --> uistore
+  cfg --> planner
+  cfg --> api
+  env --> http
+  env --> llm
+  env --> execute

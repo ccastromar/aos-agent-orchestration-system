@@ -1,12 +1,12 @@
 package agent
 
 import (
-	"context"
+    "context"
 
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/ui"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/ui"
 )
 
 type Analyst struct {
@@ -52,9 +52,9 @@ func (a *Analyst) dispatch(msg bus.Message) {
 }
 
 func (a *Analyst) handleSummarize(msg bus.Message) {
-	id := msg.Payload["id"].(string)
-	intentType, _ := msg.Payload["intent"].(string)
-	rawAny := msg.Payload["rawResult"]
+    id := msg.Payload["id"].(string)
+    intentType, _ := msg.Payload["intent"].(string)
+    rawAny := msg.Payload["rawResult"]
 
 	raw, ok := rawAny.(map[string]any)
 	if !ok {
@@ -69,9 +69,15 @@ func (a *Analyst) handleSummarize(msg bus.Message) {
 	logx.Info("Analyst", "requesting summary to the LLM...")
 	logx.Debug("Analyst", "rawResult: %#v", raw)
 
-	timer := logx.Start(id, "Analyst", "SummarizeLLM")
-	summary, err := llm.SummarizeResult(a.llmClient, intentType, raw)
-	timer.End()
+ // obtain task context if present
+ taskCtx, _ := GetTaskContext(id)
+ if taskCtx == nil {
+     taskCtx = context.Background()
+ }
+
+ timer := logx.Start(id, "Analyst", "SummarizeLLM")
+ summary, err := llm.SummarizeResult(taskCtx, a.llmClient, intentType, raw)
+ timer.End()
 
 	if err != nil {
 		logx.Error("Analyst", "error calling to the LLM: %v", err)

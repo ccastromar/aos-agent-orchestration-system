@@ -1,11 +1,12 @@
 package llm
 
 import (
-	"encoding/json"
-	"fmt"
+    "context"
+    "encoding/json"
+    "fmt"
 )
 
-func SummarizeResult(c LLMClient, intentType string, rawResult map[string]any) (string, error) {
+func SummarizeResult(ctx context.Context, c LLMClient, intentType string, rawResult map[string]any) (string, error) {
 	rawJSON, _ := json.Marshal(rawResult)
 
 	prompt := fmt.Sprintf(`
@@ -24,7 +25,7 @@ Escribe un resumen corto en español para el usuario final, explicando:
 Devuelve SOLO texto plano, sin JSON, sin listas.
 `, intentType, string(rawJSON))
 
-	out, err := c.Chat(prompt)
+ out, err := c.Chat(ctx, prompt)
 	if err != nil {
 		return "", err
 	}

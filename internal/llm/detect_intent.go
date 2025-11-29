@@ -1,9 +1,10 @@
 package llm
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
+    "context"
+    "encoding/json"
+    "fmt"
+    "strings"
 )
 
 type DetectedIntent struct {
@@ -18,7 +19,7 @@ type IntentSchema struct {
 	Params      []string `json:"params"`
 }
 
-func DetectIntent(c LLMClient, text string, validIntents map[string]any) (*DetectedIntent, error) {
+func DetectIntent(ctx context.Context, c LLMClient, text string, validIntents map[string]any) (*DetectedIntent, error) {
 	// Construimos la lista para el prompt
 	keys := make([]string, 0, len(validIntents))
 	for k := range validIntents {
@@ -46,7 +47,7 @@ User message:
 "%s"
 `, intentsJSON, text)
 
-	raw, err := c.Chat(prompt)
+ raw, err := c.Chat(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ User message:
 }
 
 // DetectIntent recibe el mensaje usuario + todos los intents del YAML
-func DetectIntentOld(client LLMClient, userMsg string, intents map[string]IntentSchema) (*DetectedIntent, error) {
+func DetectIntentOld(ctx context.Context, client LLMClient, userMsg string, intents map[string]IntentSchema) (*DetectedIntent, error) {
 
 	// preparar JSON para el prompt (el LLM verá todos los intents disponibles)
 	intentsJSON, _ := json.Marshal(intents)
@@ -93,7 +94,7 @@ User message:
 "%s"
 `, intentsJSON, userMsg)
 
-	raw, err := client.Chat(prompt)
+ raw, err := client.Chat(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}

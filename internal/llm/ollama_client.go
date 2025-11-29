@@ -1,13 +1,13 @@
 package llm
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"time"
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "time"
 )
 
 // Defino la interfaz mas abajo
@@ -16,9 +16,9 @@ import (
 // }
 
 type OllamaClient struct {
-	BaseURL    string
-	Model      string
-	HTTPClient *http.Client
+    BaseURL    string
+    Model      string
+    HTTPClient *http.Client
 }
 
 // Asegura que implementa la interfaz
@@ -53,23 +53,26 @@ type ollamaChatResponse struct {
 	Done bool `json:"done"`
 }
 
-func (c *OllamaClient) Chat(prompt string) (string, error) {
-	payload := map[string]any{
-		"model": c.Model,
-		"messages": []map[string]any{
-			{"role": "user", "content": prompt},
-		},
-		"stream": true,
-	}
+func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) {
+    payload := map[string]any{
+        "model": c.Model,
+        "messages": []map[string]any{
+            {"role": "user", "content": prompt},
+        },
+        "stream": true,
+    }
 
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("marshal payload: %w", err)
 	}
 
-	// Context with timeout prevents hangs
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+ // Context with timeout prevents hangs; derive from provided ctx
+ if ctx == nil {
+     ctx = context.Background()
+ }
+ ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+ defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/api/chat", bytes.NewReader(data))
 	if err != nil {
@@ -120,16 +123,19 @@ func (c *OllamaClient) Chat(prompt string) (string, error) {
 }
 
 // Ping checks if Ollama is reachable and responding.
-func (c *OllamaClient) Ping() error {
-	// Ollama health: GET /api/tags
-	req, err := http.NewRequest("GET", c.BaseURL+"/api/tags", nil)
-	if err != nil {
-		return err
-	}
+func (c *OllamaClient) Ping(ctx context.Context) error {
+    // Ollama health: GET /api/tags
+    req, err := http.NewRequest("GET", c.BaseURL+"/api/tags", nil)
+    if err != nil {
+        return err
+    }
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	req = req.WithContext(ctx)
+    if ctx == nil {
+        ctx = context.Background()
+    }
+    ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+    defer cancel()
+    req = req.WithContext(ctx)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

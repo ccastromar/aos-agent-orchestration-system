@@ -3,12 +3,15 @@ package main
 import (
     "context"
     "flag"
+    "fmt"
     "log"
     "os"
     "os/signal"
     "syscall"
 
     "github.com/ccastromar/aos-agent-orchestration-system/internal/app"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/config"
+    "github.com/joho/godotenv"
 )
 
 // runner is the minimal interface our app must satisfy for running.
@@ -33,12 +36,25 @@ func run(ctx context.Context) {
 }
 
 func main() {
+    // Load .env automatically if present (optional)
+    if _, err := os.Stat(".env"); err == nil {
+        _ = godotenv.Load(".env")
+    }
+
     // CLI flags
-    port := flag.String("port", "9090", "HTTP port to listen on")
+    port := flag.String("port", "", "HTTP port to listen on")
     flag.Parse()
 
-    // apply runtime options
-    app.SetHTTPPort(*port)
+    // apply runtime options: CLI flag > env var > default (internal)
+    if *port != "" {
+        app.SetHTTPPort(*port)
+    } else {
+        if env, err := config.LoadEnv(); err == nil {
+            if env.Port != 0 {
+                app.SetHTTPPort(fmt.Sprintf("%d", env.Port))
+            }
+        }
+    }
 
     ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
     defer stop()

@@ -150,3 +150,31 @@ func TestExecuteTool_HeadersWithEnv(t *testing.T) {
     require.NoError(t, err)
     require.Equal(t, "Bearer secret123", gotAuth)
 }
+
+func TestExecuteTool_HeadersWithAPIKeyEnv(t *testing.T) {
+    // Ensure we can read API_KEY from environment in header templates
+    t.Setenv("API_KEY", "banking-abc-123")
+
+    var gotAuth string
+
+    ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        gotAuth = r.Header.Get("Authorization")
+        json.NewEncoder(w).Encode(map[string]any{"ok": true})
+    }))
+    defer ts.Close()
+
+    tool := config.Tool{
+        Name:      "with_api_key_header",
+        Type:      "http",
+        Method:    "GET",
+        URL:       ts.URL + "/ping",
+        TimeoutMs: 1000,
+        Headers: map[string]string{
+            "Authorization": "Bearer {{ env \"API_KEY\" }}",
+        },
+    }
+
+    _, err := tools.ExecuteTool(tool, map[string]string{})
+    require.NoError(t, err)
+    require.Equal(t, "Bearer banking-abc-123", gotAuth)
+}

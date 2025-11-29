@@ -1,6 +1,7 @@
 package agent
 
 import (
+    "context"
     "errors"
     "testing"
 
@@ -15,8 +16,8 @@ type fakeLLM struct{
     err error
 }
 
-func (f *fakeLLM) Ping() error { return nil }
-func (f *fakeLLM) Chat(prompt string) (string, error) { return f.out, f.err }
+func (f *fakeLLM) Ping(ctx context.Context) error { return nil }
+func (f *fakeLLM) Chat(ctx context.Context, prompt string) (string, error) { return f.out, f.err }
 
 var _ llm.LLMClient = (*fakeLLM)(nil)
 

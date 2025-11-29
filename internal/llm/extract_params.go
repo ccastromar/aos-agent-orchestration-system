@@ -1,13 +1,14 @@
 package llm
 
 import (
-	"encoding/json"
-	"fmt"
-	"regexp"
-	"strings"
+    "context"
+    "encoding/json"
+    "fmt"
+    "regexp"
+    "strings"
 )
 
-func ExtractParams(client LLMClient, userMsg string, required []string) (map[string]string, error) {
+func ExtractParams(ctx context.Context, client LLMClient, userMsg string, required []string) (map[string]string, error) {
 	paramsJSON, _ := json.Marshal(required)
 
 	prompt := fmt.Sprintf(`
@@ -27,7 +28,7 @@ Requirements:
 User message: "%s"
 `, string(paramsJSON), userMsg)
 
-	raw, err := client.Chat(prompt)
+ raw, err := client.Chat(ctx, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("error en LLM: %w", err)
 	}

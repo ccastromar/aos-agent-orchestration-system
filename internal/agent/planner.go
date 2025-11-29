@@ -70,19 +70,25 @@ func (p *Planner) dispatch(msg bus.Message) {
 }
 
 func (p *Planner) handleDetectIntent(msg bus.Message) {
-	id := msg.Payload["id"].(string)
-	userMsg := msg.Payload["message"].(string)
+    id := msg.Payload["id"].(string)
+    userMsg := msg.Payload["message"].(string)
 
-	logx.Debug("Planner", "detect_intent id=%s msg='%s'", id, userMsg)
+    logx.Debug("Planner", "detect_intent id=%s msg='%s'", id, userMsg)
+
+    // obtain task context if present
+    taskCtx, _ := GetTaskContext(id)
+    if taskCtx == nil {
+        taskCtx = context.Background()
+    }
 
 	intentKeys := make(map[string]any)
 	for k := range p.cfg.Intents {
 		intentKeys[k] = true
 	}
 
-	timer := logx.Start(id, "Planner", "DetectIntentLLM")
-	detected, err := llm.DetectIntent(p.llmClient, userMsg, intentKeys)
-	timer.End()
+ timer := logx.Start(id, "Planner", "DetectIntentLLM")
+ detected, err := llm.DetectIntent(taskCtx, p.llmClient, userMsg, intentKeys)
+ timer.End()
 	if err != nil {
 		logx.Error("Planner", "[%s] ERROR detecting intent: %v", id, err)
 		//p.ui.AddEvent(id, "Planner", "intent_error", err.Error(), timer.Duration())
@@ -112,9 +118,9 @@ func (p *Planner) handleDetectIntent(msg bus.Message) {
 	required := intentCfg.RequiredParams
 
 	if len(required) > 0 {
-		timer := logx.Start(id, "Planner", "ExtractParams")
-		extracted, err := llm.ExtractParams(p.llmClient, userMsg, required)
-		timer.End()
+  timer := logx.Start(id, "Planner", "ExtractParams")
+  extracted, err := llm.ExtractParams(taskCtx, p.llmClient, userMsg, required)
+  timer.End()
 
 		if err != nil {
 			logx.Error("Planner", "[%s] ERROR extracting params: %v", id, err)

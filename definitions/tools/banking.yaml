@@ -3,6 +3,8 @@ tools:
     type: http
     method: GET
     url: "http://localhost:9000/mock/core/balance?accountId={{ .accountId }}"
+    headers:
+      Authorization: "Bearer {{ env \"API_KEY\" }}"
     mode: read
     timeout: 3000
 
@@ -10,6 +12,8 @@ tools:
     type: http
     method: GET
     url: "http://localhost:9000/mock/core/creditcard?cardId={{ .cardId }}"
+    headers:
+      Authorization: "Bearer {{ env \"API_KEY\" }}"
     mode: read
     timeout: 3000
 
@@ -17,6 +21,8 @@ tools:
     type: http
     method: GET
     url: "http://localhost:9000/mock/core/movements?accountId={{ .accountId }}&from={{ .from }}&to={{ .to }}"
+    headers:
+      Authorization: "Bearer {{ env \"API_KEY\" }}"
     mode: read
     timeout: 5000
 
@@ -24,6 +30,8 @@ tools:
     type: http
     method: POST
     url: "http://localhost:9000/mock/aml/check"
+    headers:
+      Authorization: "Bearer {{ env \"API_KEY\" }}"
     mode: read
     timeout: 4000
     body:
@@ -34,6 +42,8 @@ tools:
     type: http
     method: POST
     url: "http://localhost:9000/mock/payments/bizum"
+    headers:
+      Authorization: "Bearer {{ env \"API_KEY\" }}"
     mode: dangerous
     timeout: 5000
     body:
@@ -46,6 +56,8 @@ tools:
     type: http
     method: POST
     url: "http://localhost:9000/mock/notifications/send"
+    headers:
+      Authorization: "Bearer {{ env \"API_KEY\" }}"
     mode: write
     timeout: 3000
     body:

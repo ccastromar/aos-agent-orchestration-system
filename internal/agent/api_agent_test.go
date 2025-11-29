@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAPIAgent_HandleAsk(t *testing.T) {
+func TestAPIAgent_HandleAsk_AsyncAndTaskFetch(t *testing.T) {
 	// Setup dependencies
 	messageBus := bus.New()
 	uiStore := ui.NewUIStore()
@@ -62,21 +62,41 @@ func TestAPIAgent_HandleAsk(t *testing.T) {
 		}
 	}()
 
-	// Execute request
-	resp, err := http.Post(ts.URL+"/ask", "application/json", bytes.NewBuffer(bodyBytes))
-	require.NoError(t, err)
-	defer resp.Body.Close()
+    // Execute async request
+    resp, err := http.Post(ts.URL+"/ask", "application/json", bytes.NewBuffer(bodyBytes))
+    require.NoError(t, err)
+    defer resp.Body.Close()
 
-	// Verify response
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+    // Verify immediate async response
+    require.Equal(t, http.StatusAccepted, resp.StatusCode)
 
-	var result map[string]any
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	require.NoError(t, err)
+    var accepted map[string]any
+    err = json.NewDecoder(resp.Body).Decode(&accepted)
+    require.NoError(t, err)
+    require.Equal(t, "accepted", accepted["status"])
+    id, _ := accepted["id"].(string)
+    if id == "" { t.Fatalf("expected id in async response") }
 
-	require.Equal(t, "completed", result["status"])
+    // Initially should be pending
+    r1, err := http.Get(ts.URL+"/task?id="+id)
+    require.NoError(t, err)
+    defer r1.Body.Close()
+    require.Equal(t, http.StatusOK, r1.StatusCode)
+    var pending map[string]any
+    require.NoError(t, json.NewDecoder(r1.Body).Decode(&pending))
+    require.Equal(t, "pending", pending["status"])
 
-	data, ok := result["data"].(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, "processed", data["reply"])
+    // Allow backend goroutine to store the result, then fetch again
+    time.Sleep(100 * time.Millisecond)
+    r2, err := http.Get(ts.URL+"/task?id="+id)
+    require.NoError(t, err)
+    defer r2.Body.Close()
+    require.Equal(t, http.StatusOK, r2.StatusCode)
+    var done map[string]any
+    require.NoError(t, json.NewDecoder(r2.Body).Decode(&done))
+    require.Equal(t, id, done["id"])
+    require.Equal(t, "completed", done["status"])
+    data, ok := done["data"].(map[string]any)
+    require.True(t, ok)
+    require.Equal(t, "processed", data["reply"])
 }

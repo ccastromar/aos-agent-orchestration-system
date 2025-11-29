@@ -16,6 +16,7 @@ import (
 
 type App struct {
 	cfg    *config.Config
+	env    *config.EnvVars
 	bus    *bus.Bus
 	ui     *ui.UIStore
 	agents []agent.Agent
@@ -23,7 +24,19 @@ type App struct {
 	http   *HTTPServer
 }
 
+// New loads environment variables if available and delegates to NewWithEnv.
+// It is tolerant to missing env during tests (e.g., required vars not set).
 func New() (*App, error) {
+	env, err := config.LoadEnv()
+	if err != nil {
+		// Proceed without env to keep backward compatibility in tests
+		return NewWithEnv(nil)
+	}
+	return NewWithEnv(env)
+}
+
+// NewWithEnv builds the App wiring using the provided environment variables.
+func NewWithEnv(env *config.EnvVars) (*App, error) {
 	cfg, err := config.LoadFromDir("definitions")
 	if err != nil {
 		return nil, err
@@ -32,7 +45,18 @@ func New() (*App, error) {
 	uiStore := ui.NewUIStore()
 	messageBus := bus.New()
 
-	llmClient := llm.NewOllamaClient("http://localhost:11434", "qwen3:0.6b")
+	// Select LLM client parameters from env when available (Ollama)
+	ollamaURL := "http://localhost:11434"
+	ollamaModel := "qwen3:0.6b"
+	if env != nil {
+		if env.OllamaBaseURL != "" {
+			ollamaURL = env.OllamaBaseURL
+		}
+		if env.OllamaModel != "" {
+			ollamaModel = env.OllamaModel
+		}
+	}
+	llmClient := llm.NewOllamaClient(ollamaURL, ollamaModel)
 
 	r := &runtime.Runtime{
 		SpecsLoaded: true,
@@ -57,6 +81,7 @@ func New() (*App, error) {
 
 	return &App{
 		cfg:    cfg,
+		env:    env,
 		bus:    messageBus,
 		ui:     uiStore,
 		agents: []agent.Agent{inspector, planner, verifier, analyst},
@@ -70,9 +95,9 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Lanzar agentes
 	for _, ag := range a.agents {
-		agent := ag
+		agentAI := ag
 		g.Go(func() error {
-			return agent.Start(gctx)
+			return agentAI.Start(gctx)
 		})
 	}
 
@@ -81,7 +106,11 @@ func (a *App) Run(ctx context.Context) error {
 		return a.http.Start(gctx)
 	})
 
-	logx.Info("App", "AOS v0.2.0 started")
+	if a.env != nil {
+		logx.Info("App", "AOS v0.2.0 started (env=%s)", a.env.AppEnv)
+	} else {
+		logx.Info("App", "AOS v0.2.0 started")
+	}
 
 	return g.Wait()
 }

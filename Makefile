@@ -54,6 +54,27 @@ clean: ## Clean build artifacts
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html
 
+# -------------------------------------------------------------
+# Diagram generation (Mermaid via Docker)
+# -------------------------------------------------------------
+.PHONY: diagram diagram-svg diagram-png
+
+diagram: diagram-svg diagram-png ## Generate both SVG and PNG diagrams
+
+diagram-svg: ## Generate architecture.svg from docs/architecture.mmd
+	@mkdir -p docs
+	@docker run --rm -u $$(id -u):$$(id -g) \
+	  -v $$PWD:/work ghcr.io/mermaid-js/mermaid-cli:10.9.0 \
+	  -i /work/docs/architecture.mmd -o /work/docs/architecture.svg
+	@echo "Generated docs/architecture.svg"
+
+diagram-png: ## Generate architecture.png from docs/architecture.mmd
+	@mkdir -p docs
+	@docker run --rm -u $$(id -u):$$(id -g) \
+	  -v $$PWD:/work ghcr.io/mermaid-js/mermaid-cli:10.9.0 \
+	  -i /work/docs/architecture.mmd -o /work/docs/architecture.png
+	@echo "Generated docs/architecture.png"
+
 .PHONY: install
 install: ## Install dependencies
 	@echo "Installing dependencies..."
