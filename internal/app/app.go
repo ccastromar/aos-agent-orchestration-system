@@ -1,12 +1,13 @@
 package app
 
 import (
-	"context"
+    "context"
+    "net/http"
 
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/runtime"
-	"golang.org/x/sync/errgroup"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/runtime"
+    "golang.org/x/sync/errgroup"
 
 	"github.com/ccastromar/aos-agent-orchestration-system/internal/agent"
 	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
@@ -115,5 +116,29 @@ func (a *App) Run(ctx context.Context) error {
 		logx.Info("App", "AOS v0.2.0 started")
 	}
 
-	return g.Wait()
+    return g.Wait()
+}
+
+// Handler exposes the HTTP handler for embedding in httptest servers
+// during end-to-end and functional tests, avoiding real port binding.
+func (a *App) Handler() http.Handler {
+    if a == nil || a.http == nil || a.http.srv == nil {
+        return http.NewServeMux()
+    }
+    return a.http.srv.Handler
+}
+
+// StartAgents launches the background agent goroutines without starting
+// the HTTP server. It returns a cancel function to stop them.
+// This is intended for tests that embed the HTTP handler in an httptest server.
+func (a *App) StartAgents(parent context.Context) context.CancelFunc {
+    if parent == nil {
+        parent = context.Background()
+    }
+    ctx, cancel := context.WithCancel(parent)
+    for _, ag := range a.agents {
+        agentAI := ag
+        go func() { _ = agentAI.Start(ctx) }()
+    }
+    return cancel
 }

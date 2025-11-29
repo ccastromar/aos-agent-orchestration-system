@@ -8,6 +8,7 @@ import (
     "io"
     "net/http"
     "time"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/metrics"
 )
 
 // Defino la interfaz mas abajo
@@ -78,6 +79,7 @@ func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) 
         httpClient = &http.Client{Timeout: 30 * time.Second}
     }
 
+    start := time.Now()
     resp, err := retryHTTP(ctx, 3, 100*time.Millisecond, func() (*http.Response, error) {
         req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/api/chat", bytes.NewReader(data))
         if err != nil {
@@ -87,13 +89,15 @@ func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) 
         return httpClient.Do(req)
     })
     if err != nil {
+        metrics.LLMChats.Inc(map[string]string{"provider": "ollama", "outcome": "error"})
         return "", err
     }
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("ollama chat failed: status %d, body: %s", resp.StatusCode, string(b))
-	}
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        b, _ := io.ReadAll(resp.Body)
+        metrics.LLMChats.Inc(map[string]string{"provider": "ollama", "outcome": "error"})
+        return "", fmt.Errorf("ollama chat failed: status %d, body: %s", resp.StatusCode, string(b))
+    }
 
 	dec := json.NewDecoder(resp.Body)
 	var out bytes.Buffer
@@ -107,12 +111,13 @@ func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) 
 			Done bool `json:"done"`
 		}
 
-		if err := dec.Decode(&chunk); err != nil {
-			if err.Error() == "EOF" {
-				break
-			}
-			return "", err
-		}
+  if err := dec.Decode(&chunk); err != nil {
+            if err.Error() == "EOF" {
+                break
+            }
+            metrics.LLMChats.Inc(map[string]string{"provider": "ollama", "outcome": "error"})
+            return "", err
+        }
 
 		if chunk.Message != nil {
 			out.WriteString(chunk.Message.Content)
@@ -123,7 +128,9 @@ func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) 
 		}
 	}
 
-	return out.String(), nil
+    metrics.LLMChats.Inc(map[string]string{"provider": "ollama", "outcome": "ok"})
+    metrics.LLMChatDur.Observe(map[string]string{"provider": "ollama", "outcome": "ok"}, time.Since(start).Seconds())
+    return out.String(), nil
 }
 
 // Ping checks if Ollama is reachable and responding.
@@ -148,13 +155,15 @@ func (c *OllamaClient) Ping(ctx context.Context) error {
         return httpClient.Do(req)
     })
     if err != nil {
+        metrics.LLMPings.Inc(map[string]string{"provider": "ollama", "outcome": "error"})
         return err
     }
-	defer resp.Body.Close()
+    defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("llm ping failed: status %d", resp.StatusCode)
-	}
-
-	return nil
+    if resp.StatusCode != http.StatusOK {
+        metrics.LLMPings.Inc(map[string]string{"provider": "ollama", "outcome": "error"})
+        return fmt.Errorf("llm ping failed: status %d", resp.StatusCode)
+    }
+    metrics.LLMPings.Inc(map[string]string{"provider": "ollama", "outcome": "ok"})
+    return nil
 }

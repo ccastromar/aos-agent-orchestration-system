@@ -48,20 +48,28 @@ func (i *Inspector) Start(ctx context.Context) error {
 }
 
 func (i *Inspector) dispatch(msg bus.Message) {
-	switch msg.Type {
-	case "new_task":
-		id := msg.Payload["id"].(string)
-		mode, _ := msg.Payload["mode"].(string)
-		logx.Info("Inspector", "new task id=%s mode=%s", id, mode)
+    switch msg.Type {
+    case "new_task":
+        id := msg.Payload["id"].(string)
+        mode, _ := msg.Payload["mode"].(string)
+        logx.Info("Inspector", "new task id=%s mode=%s", id, mode)
 
-		i.bus.Send("planner", bus.Message{
-			Type: "detect_intent",
-			Payload: map[string]any{
-				"id":      id,
-				"message": msg.Payload["message"],
-				"mode":    mode,
-			},
-		})
+        // If operation is provided, forward it too so planner can skip LLM.
+        payload := map[string]any{
+            "id":      id,
+            "message": msg.Payload["message"],
+            "mode":    mode,
+        }
+        if op, ok := msg.Payload["operation"].(string); ok && op != "" {
+            payload["operation"] = op
+        }
+        if params, ok := msg.Payload["params"].(map[string]any); ok && params != nil {
+            payload["params"] = params
+        }
+        i.bus.Send("planner", bus.Message{
+            Type: "detect_intent",
+            Payload: payload,
+        })
 
 	default:
 		logx.Warn("Inspector", "unknown message: %#v", msg)

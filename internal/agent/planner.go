@@ -83,7 +83,7 @@ func (p *Planner) dispatch(msg bus.Message) {
 
 func (p *Planner) handleDetectIntent(msg bus.Message) {
     id := msg.Payload["id"].(string)
-    userMsg := msg.Payload["message"].(string)
+    userMsg, _ := msg.Payload["message"].(string)
 
     logx.Debug("Planner", "detect_intent id=%s msg='%s'", id, userMsg)
 
@@ -92,83 +92,97 @@ func (p *Planner) handleDetectIntent(msg bus.Message) {
     if taskCtx == nil {
         taskCtx = context.Background()
     }
+    // Fast path: if operation is provided, skip LLM detection
+    var detectedType string
+    if op, ok := msg.Payload["operation"].(string); ok && op != "" {
+        detectedType = op
+    } else {
+        intentKeys := make(map[string]any)
+        for k := range p.cfg.Intents {
+            intentKeys[k] = true
+        }
 
-	intentKeys := make(map[string]any)
-	for k := range p.cfg.Intents {
-		intentKeys[k] = true
-	}
+        timer := logx.Start(id, "Planner", "DetectIntentLLM")
+        di, err := llm.DetectIntent(taskCtx, p.llmClient, userMsg, intentKeys)
+        timer.End()
+        if err != nil {
+            logx.Error("Planner", "[%s] ERROR detecting intent: %v", id, err)
+            storeResult(id, Result{Status: "error", Err: err.Error()})
+            return
+        }
+        logx.Debug("Planner", "raw intent LLM='%s'", di.Type)
+        detectedType = di.Type
+    }
 
- timer := logx.Start(id, "Planner", "DetectIntentLLM")
- detected, err := llm.DetectIntent(taskCtx, p.llmClient, userMsg, intentKeys)
- timer.End()
-	if err != nil {
-		logx.Error("Planner", "[%s] ERROR detecting intent: %v", id, err)
-		//p.ui.AddEvent(id, "Planner", "intent_error", err.Error(), timer.Duration())
-		storeResult(id, Result{Status: "error", Err: err.Error()})
-		return
-	}
-
-	logx.Debug("Planner", "raw intent LLM='%s'", detected.Type)
-
-	intentCfg, ok := p.cfg.Intents[detected.Type]
-	if !ok {
-		p.storeError(id, "intent desconocido para AOS")
-		return
-	}
+    intentCfg, ok := p.cfg.Intents[detectedType]
+    if !ok {
+        p.storeError(id, "intent desconocido para AOS")
+        return
+    }
 
 	// 🔥 2. Seleccionar pipeline
-	pipeName := intentCfg.Pipeline
-	pipe, ok := p.cfg.Pipelines[pipeName]
-	if !ok {
-		p.storeError(id, "pipeline inexistente para intent")
-		return
-	}
+ pipeName := intentCfg.Pipeline
+ pipe, ok := p.cfg.Pipelines[pipeName]
+ if !ok {
+     p.storeError(id, "pipeline inexistente para intent")
+     return
+ }
 
-	params := map[string]string{}
+ params := map[string]string{}
 
-	// Traemos los required params del YAML
-	required := intentCfg.RequiredParams
+ // Traemos los required params del YAML
+ required := intentCfg.RequiredParams
 
-	if len(required) > 0 {
-  timer := logx.Start(id, "Planner", "ExtractParams")
-  extracted, err := llm.ExtractParams(taskCtx, p.llmClient, userMsg, required)
-  timer.End()
+ if op, ok := msg.Payload["operation"].(string); ok && op != "" {
+     // Structured path: use provided params (map[string]any -> map[string]string)
+     if mp, ok := msg.Payload["params"].(map[string]any); ok && mp != nil {
+         for k, v := range mp {
+             if s, ok := v.(string); ok {
+                 params[k] = s
+             }
+         }
+     }
+ } else {
+     if len(required) > 0 {
+         timer := logx.Start(id, "Planner", "ExtractParams")
+         extracted, err := llm.ExtractParams(taskCtx, p.llmClient, userMsg, required)
+         timer.End()
 
-		if err != nil {
-			logx.Error("Planner", "[%s] ERROR extracting params: %v", id, err)
-			p.storeError(id, "error extrayendo parámetros")
-			return
-		}
+         if err != nil {
+             logx.Error("Planner", "[%s] ERROR extracting params: %v", id, err)
+             p.storeError(id, "error extrayendo parámetros")
+             return
+         }
 
-		params = extracted
-	}
+         params = extracted
+     }
+ }
 
-	err = guard.ValidateAll(intentCfg, pipe, params, p.cfg.Tools)
-	if err != nil {
-		logx.L(id, "Guard", "validation failed: %v", err)
-		storeResult(id, Result{
-			Status: "error",
-			Err:    err.Error(),
-		})
-		return
-	}
+ if err := guard.ValidateAll(intentCfg, pipe, params, p.cfg.Tools); err != nil {
+     logx.L(id, "Guard", "validation failed: %v", err)
+     storeResult(id, Result{
+         Status: "error",
+         Err:    err.Error(),
+     })
+     return
+ }
 
-	logx.Info("Planner", "id=%s intent=%s pipeline=%s params=%v",
-		id, detected.Type, pipeName, params)
-	p.uiStore.AddEvent(id, "Planner", "intent", detected.Type, "")
+ logx.Info("Planner", "id=%s intent=%s pipeline=%s params=%v",
+        id, detectedType, pipeName, params)
+    p.uiStore.AddEvent(id, "Planner", "intent", detectedType, "")
 
 	timer2 := logx.Start(id, "Planner", "DispatchPipeline")
 
 	// 🔥 4. Enviar al Verifier
 	p.bus.Send("verifier", bus.Message{
 		Type: "run_pipeline",
-		Payload: map[string]any{
-			"id":       id,
-			"intent":   detected.Type,
-			"pipeline": pipe,
-			"params":   params,
-		},
-	})
+        Payload: map[string]any{
+            "id":       id,
+            "intent":   detectedType,
+            "pipeline": pipe,
+            "params":   params,
+        },
+    })
 	timer2.End()
 
 }

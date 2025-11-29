@@ -1,15 +1,15 @@
 package agent
 
 import (
-    "context"
-    "encoding/json"
-    "errors"
-    "log"
-    "net/http"
-    "os"
-    "regexp"
-    "strings"
-    "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+	"os"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
 	"github.com/ccastromar/aos-agent-orchestration-system/internal/logx"
@@ -17,34 +17,33 @@ import (
 )
 
 type APIAgent struct {
-    bus     *bus.Bus
-    inbox   chan bus.Message
-    uiStore *ui.UIStore // <-- nuevo
-    // minimal auth and rate limiting
-    apiKey string
-    // naive fixed-window rate limiter per client key
-    rl struct {
-        Window    time.Duration
-        Limit     int
-        mu        chan struct{} // lightweight mutex using channel
-        buckets   map[string]*rateBucket
-    }
-
+	bus     *bus.Bus
+	inbox   chan bus.Message
+	uiStore *ui.UIStore // <-- nuevo
+	// minimal auth and rate limiting
+	apiKey string
+	// naive fixed-window rate limiter per client key
+	rl struct {
+		Window  time.Duration
+		Limit   int
+		mu      chan struct{} // lightweight mutex using channel
+		buckets map[string]*rateBucket
+	}
 }
 
 func NewAPIAgent(b *bus.Bus, ui *ui.UIStore) *APIAgent {
-    a := &APIAgent{
-        bus:     b,
-        inbox:   make(chan bus.Message, 16),
-        uiStore: ui,
-        apiKey:  strings.TrimSpace(os.Getenv("API_KEY")),
-    }
-    // initialize rate limiter defaults
-    a.rl.Window = 1 * time.Minute
-    a.rl.Limit = 60
-    a.rl.mu = make(chan struct{}, 1)
-    a.rl.buckets = make(map[string]*rateBucket)
-    return a
+	a := &APIAgent{
+		bus:     b,
+		inbox:   make(chan bus.Message, 16),
+		uiStore: ui,
+		apiKey:  strings.TrimSpace(os.Getenv("API_KEY")),
+	}
+	// initialize rate limiter defaults
+	a.rl.Window = 1 * time.Minute
+	a.rl.Limit = 60
+	a.rl.mu = make(chan struct{}, 1)
+	a.rl.buckets = make(map[string]*rateBucket)
+	return a
 }
 
 // Max request size for POST /ask to protect the server (1MB)
@@ -52,63 +51,63 @@ const maxAskBodyBytes int64 = 1 << 20
 
 // rateBucket tracks hits in a fixed window
 type rateBucket struct {
-    start time.Time
-    hits  int
+	start time.Time
+	hits  int
 }
 
 // acquireRL returns error if rate limit exceeded
 func (a *APIAgent) acquireRL(key string) error {
-    if key == "" {
-        key = "anon"
-    }
-    // lock
-    a.rl.mu <- struct{}{}
-    defer func() { <-a.rl.mu }()
+	if key == "" {
+		key = "anon"
+	}
+	// lock
+	a.rl.mu <- struct{}{}
+	defer func() { <-a.rl.mu }()
 
-    b, ok := a.rl.buckets[key]
-    now := time.Now()
-    if !ok || now.Sub(b.start) >= a.rl.Window {
-        a.rl.buckets[key] = &rateBucket{start: now, hits: 1}
-        return nil
-    }
-    if b.hits >= a.rl.Limit {
-        return errors.New("rate limit exceeded")
-    }
-    b.hits++
-    return nil
+	b, ok := a.rl.buckets[key]
+	now := time.Now()
+	if !ok || now.Sub(b.start) >= a.rl.Window {
+		a.rl.buckets[key] = &rateBucket{start: now, hits: 1}
+		return nil
+	}
+	if b.hits >= a.rl.Limit {
+		return errors.New("rate limit exceeded")
+	}
+	b.hits++
+	return nil
 }
 
 // getClientKey picks an identifier for auth/rate limit: API key if present, else IP
 func getClientKey(r *http.Request) string {
-    // prefer provided API key to segregate limits per token
-    if k := r.Header.Get("X-API-Key"); k != "" {
-        return "key:" + k
-    }
-    if auth := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(auth), "bearer ") {
-        return "key:" + strings.TrimSpace(auth[7:])
-    }
-    // fallback to remote addr (strip port)
-    host := r.RemoteAddr
-    if i := strings.LastIndex(host, ":"); i > 0 {
-        host = host[:i]
-    }
-    return "ip:" + host
+	// prefer provided API key to segregate limits per token
+	if k := r.Header.Get("X-API-Key"); k != "" {
+		return "key:" + k
+	}
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+		return "key:" + strings.TrimSpace(auth[7:])
+	}
+	// fallback to remote addr (strip port)
+	host := r.RemoteAddr
+	if i := strings.LastIndex(host, ":"); i > 0 {
+		host = host[:i]
+	}
+	return "ip:" + host
 }
 
 // checkAuth enforces API key when configured via API_KEY env var
 func (a *APIAgent) checkAuth(r *http.Request) bool {
-    if a.apiKey == "" {
-        return true // auth disabled
-    }
-    if k := r.Header.Get("X-API-Key"); k != "" && k == a.apiKey {
-        return true
-    }
-    auth := r.Header.Get("Authorization")
-    if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
-        token := strings.TrimSpace(auth[7:])
-        return token == a.apiKey
-    }
-    return false
+	if a.apiKey == "" {
+		return true // auth disabled
+	}
+	if k := r.Header.Get("X-API-Key"); k != "" && k == a.apiKey {
+		return true
+	}
+	auth := r.Header.Get("Authorization")
+	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+		token := strings.TrimSpace(auth[7:])
+		return token == a.apiKey
+	}
+	return false
 }
 
 var idRe = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
@@ -118,22 +117,22 @@ func (a *APIAgent) Inbox() chan bus.Message {
 }
 
 func (a *APIAgent) Start(ctx context.Context) error {
-    defer func() {
-        if r := recover(); r != nil {
-            logx.Error("API", "panic recovered in Start: %v", r)
-        }
-    }()
-    for {
-        select {
-        case msg := <-a.inbox:
-            func() {
-                defer func() {
-                    if r := recover(); r != nil {
-                        logx.Error("API", "panic recovered in dispatch: %v", r)
-                    }
-                }()
-                a.dispatch(msg)
-            }()
+	defer func() {
+		if r := recover(); r != nil {
+			logx.Error("API", "panic recovered in Start: %v", r)
+		}
+	}()
+	for {
+		select {
+		case msg := <-a.inbox:
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logx.Error("API", "panic recovered in dispatch: %v", r)
+					}
+				}()
+				a.dispatch(msg)
+			}()
 
 		case <-ctx.Done():
 			return nil
@@ -166,82 +165,85 @@ type askResponse struct {
 
 // RegisterHTTP registra endpoints HTTP
 func (a *APIAgent) RegisterHTTP(mux *http.ServeMux) {
-    mux.HandleFunc("/ask", a.handleAsk)   // async structured mode
-    mux.HandleFunc("/task", a.handleTask) // fetch task status/result
-    //mux.HandleFunc("/ask_nlp", a.handleAskNLP) // modo lenguaje natural
+	mux.HandleFunc("/ask", a.handleAsk)             // async NLP-like mode (message)
+	mux.HandleFunc("/ask_structured", a.handleAsk2) // sync: operation + params
+	mux.HandleFunc("/task", a.handleTask)           // fetch task status/result
+	//mux.HandleFunc("/ask_nlp", a.handleAskNLP) // modo lenguaje natural
 }
 
 func (a *APIAgent) handleAsk(w http.ResponseWriter, r *http.Request) {
-    // Method check
-    if r.Method != http.MethodPost {
-        w.WriteHeader(http.StatusMethodNotAllowed)
-        return
-    }
-    // Auth check (optional)
-    if !a.checkAuth(r) {
-        w.Header().Set("WWW-Authenticate", "Bearer, X-API-Key")
-        http.Error(w, "unauthorized", http.StatusUnauthorized)
-        return
-    }
-    // Rate limit
-    if err := a.acquireRL(getClientKey(r)); err != nil {
-        http.Error(w, "too many requests", http.StatusTooManyRequests)
-        return
-    }
-    // Enforce content type
-    ct := r.Header.Get("Content-Type")
-    if ct == "" || !strings.HasPrefix(strings.ToLower(ct), "application/json") {
-        http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
-        return
-    }
-    type Req struct {
-        Message string `json:"message"`
-    }
+	// Method check
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	// Auth check (optional)
+	if !a.checkAuth(r) {
+		w.Header().Set("WWW-Authenticate", "Bearer, X-API-Key")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// Rate limit
+	if err := a.acquireRL(getClientKey(r)); err != nil {
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
+	// Enforce content type
+	ct := r.Header.Get("Content-Type")
+	if ct == "" || !strings.HasPrefix(strings.ToLower(ct), "application/json") {
+		http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
+		return
+	}
+	type Req struct {
+		Message string `json:"message"`
+	}
 
- // Limit request body size
- r.Body = http.MaxBytesReader(w, r.Body, maxAskBodyBytes)
- var req Req
- if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-     // If body too large, return 413; otherwise 400
-     httpErr := http.StatusBadRequest
-     if err != nil && err.Error() == "http: request body too large" {
-         httpErr = http.StatusRequestEntityTooLarge
-     }
-     http.Error(w, "invalid request body", httpErr)
-     return
- }
+	// Limit request body size
+	r.Body = http.MaxBytesReader(w, r.Body, maxAskBodyBytes)
+	var req Req
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// If body too large, return 413; otherwise 400
+		httpErr := http.StatusBadRequest
+		if err != nil && err.Error() == "http: request body too large" {
+			httpErr = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, "invalid request body", httpErr)
+		return
+	}
 
 	if req.Message == "" {
 		http.Error(w, "message requerido", http.StatusBadRequest)
 		return
 	}
 
- id := randomID()
+	id := randomID()
 
- logx.Info("Api", "new request id=%s message='%s'", id, req.Message)
- a.uiStore.AddEvent(id, "Api", "request", req.Message, "")
+	logx.Info("Api", "new request id=%s message='%s'", id, req.Message)
+	a.uiStore.AddEvent(id, "Api", "request", req.Message, "")
 
- // Create and register a task context with a default TTL
- // Future: source from env
- _ = NewTaskContext(r.Context(), id, 60*time.Second)
+	// Create and register a task context with a default TTL. We deliberately
+	// do NOT tie this context to the request context, because /ask returns
+	// immediately (async) and we want background processing to continue
+	// even after the client disconnects. Use Background as parent.
+	_ = NewTaskContext(context.Background(), id, 60*time.Second)
 
-    // Enviar al inspector con el message correcto
-    a.bus.Send("inspector", bus.Message{
-        Type: "new_task",
-        Payload: map[string]any{
-            "id":      id,
-            "mode":    "structured",
-            "message": req.Message, // ← ¡IMPORTANTE!
-        },
-    })
+	// Enviar al inspector con el message correcto
+	a.bus.Send("inspector", bus.Message{
+		Type: "new_task",
+		Payload: map[string]any{
+			"id":      id,
+			"mode":    "structured",
+			"message": req.Message, // ← ¡IMPORTANTE!
+		},
+	})
 
-    // Respuesta asíncrona inmediata
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusAccepted)
-    _ = json.NewEncoder(w).Encode(map[string]any{
-        "id":     id,
-        "status": "accepted",
-    })
+	// Respuesta asíncrona inmediata
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":     id,
+		"status": "accepted",
+	})
 }
 
 // /ask → operation + params (como v1)
@@ -294,52 +296,52 @@ func (a *APIAgent) handleAsk2(w http.ResponseWriter, r *http.Request) {
 // handleTask devuelve el estado/resultados de una tarea.
 // GET /task?id=...
 func (a *APIAgent) handleTask(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodGet {
-        w.WriteHeader(http.StatusMethodNotAllowed)
-        return
-    }
-    // Auth check (optional)
-    if !a.checkAuth(r) {
-        w.Header().Set("WWW-Authenticate", "Bearer, X-API-Key")
-        http.Error(w, "unauthorized", http.StatusUnauthorized)
-        return
-    }
-    // Rate limit
-    if err := a.acquireRL(getClientKey(r)); err != nil {
-        http.Error(w, "too many requests", http.StatusTooManyRequests)
-        return
-    }
-    id := r.URL.Query().Get("id")
-    if id == "" {
-        http.Error(w, "id requerido", http.StatusBadRequest)
-        return
-    }
-    if !idRe.MatchString(id) {
-        http.Error(w, "id inválido", http.StatusBadRequest)
-        return
-    }
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	// Auth check (optional)
+	if !a.checkAuth(r) {
+		w.Header().Set("WWW-Authenticate", "Bearer, X-API-Key")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// Rate limit
+	if err := a.acquireRL(getClientKey(r)); err != nil {
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "id requerido", http.StatusBadRequest)
+		return
+	}
+	if !idRe.MatchString(id) {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
 
-    // Consultar si ya hay resultado
-    if res, ok := getResult(id); ok {
-        // Limpiar almacenamiento para evitar fugas
-        deleteResult(id)
-        w.Header().Set("Content-Type", "application/json")
-        // Mapear al formato de respuesta anterior
-        _ = json.NewEncoder(w).Encode(map[string]any{
-            "id":     id,
-            "status": res.Status,
-            "data":   res.Data,
-            "error":  res.Err,
-        })
-        return
-    }
+	// Consultar si ya hay resultado
+	if res, ok := getResult(id); ok {
+		// Limpiar almacenamiento para evitar fugas
+		deleteResult(id)
+		w.Header().Set("Content-Type", "application/json")
+		// Mapear al formato de respuesta anterior
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":     id,
+			"status": res.Status,
+			"data":   res.Data,
+			"error":  res.Err,
+		})
+		return
+	}
 
-    // Aún pendiente
-    w.Header().Set("Content-Type", "application/json")
-    _ = json.NewEncoder(w).Encode(map[string]any{
-        "id":     id,
-        "status": "pending",
-    })
+	// Aún pendiente
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"id":     id,
+		"status": "pending",
+	})
 }
 
 // /ask_nlp → message (texto libre)

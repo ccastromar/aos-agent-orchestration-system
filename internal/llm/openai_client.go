@@ -9,6 +9,7 @@ import (
     "net/http"
     "strings"
     "time"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/metrics"
 )
 
 type OpenAIClient struct {
@@ -73,15 +74,18 @@ func (c *OpenAIClient) Ping(ctx context.Context) error {
         return httpClient.Do(req)
     })
     if err != nil {
+        metrics.LLMPings.Inc(map[string]string{"provider": "openai", "outcome": "error"})
         return fmt.Errorf("openai ping failed: %w", err)
     }
     defer resp.Body.Close()
 
     if resp.StatusCode != http.StatusOK {
         b, _ := io.ReadAll(resp.Body)
+        metrics.LLMPings.Inc(map[string]string{"provider": "openai", "outcome": "error"})
         return fmt.Errorf("openai ping bad status: %d, body: %s", resp.StatusCode, string(b))
     }
 
+    metrics.LLMPings.Inc(map[string]string{"provider": "openai", "outcome": "ok"})
     return nil
 
 }
@@ -123,6 +127,7 @@ func (c *OpenAIClient) Chat(ctx context.Context, prompt string) (string, error) 
         httpClient = &http.Client{Timeout: to}
     }
 
+    start := time.Now()
     resp, err := retryHTTP(ctx, 3, 100*time.Millisecond, func() (*http.Response, error) {
         req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
         if err != nil {
@@ -133,12 +138,14 @@ func (c *OpenAIClient) Chat(ctx context.Context, prompt string) (string, error) 
         return httpClient.Do(req)
     })
     if err != nil {
+        metrics.LLMChats.Inc(map[string]string{"provider": "openai", "outcome": "error"})
         return "", err
     }
     defer resp.Body.Close()
 
     if resp.StatusCode != http.StatusOK {
         b, _ := io.ReadAll(resp.Body)
+        metrics.LLMChats.Inc(map[string]string{"provider": "openai", "outcome": "error"})
         return "", fmt.Errorf("openai chat failed: status %d, body: %s", resp.StatusCode, string(b))
     }
 
@@ -151,13 +158,17 @@ func (c *OpenAIClient) Chat(ctx context.Context, prompt string) (string, error) 
     }
 
     if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        metrics.LLMChats.Inc(map[string]string{"provider": "openai", "outcome": "error"})
         return "", err
     }
 
-	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("openai: empty response")
-	}
+    if len(result.Choices) == 0 {
+        metrics.LLMChats.Inc(map[string]string{"provider": "openai", "outcome": "error"})
+        return "", fmt.Errorf("openai: empty response")
+    }
 
-	return result.Choices[0].Message.Content, nil
+    metrics.LLMChats.Inc(map[string]string{"provider": "openai", "outcome": "ok"})
+    metrics.LLMChatDur.Observe(map[string]string{"provider": "openai", "outcome": "ok"}, time.Since(start).Seconds())
+    return result.Choices[0].Message.Content, nil
 
 }
