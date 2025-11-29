@@ -21,6 +21,11 @@ func (b *Bus) Subscribe(name string, ch chan Message) {
 
 func (b *Bus) Send(target string, msg Message) {
     if ch, ok := b.subs[target]; ok {
-        ch <- msg
+        // Non-blocking send to avoid deadlocks during shutdown or slow consumers
+        select {
+        case ch <- msg:
+        default:
+            // drop message if receiver is not ready; best-effort bus
+        }
     }
 }

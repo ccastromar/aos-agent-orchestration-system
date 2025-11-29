@@ -29,15 +29,27 @@ func (a *Analyst) Inbox() chan bus.Message {
 	return a.inbox
 }
 func (a *Analyst) Start(ctx context.Context) error {
-	for {
-		select {
-		case msg := <-a.inbox:
-			a.dispatch(msg)
+    defer func() {
+        if r := recover(); r != nil {
+            logx.Error("Analyst", "panic recovered in Start: %v", r)
+        }
+    }()
+    for {
+        select {
+        case msg := <-a.inbox:
+            func() {
+                defer func() {
+                    if r := recover(); r != nil {
+                        logx.Error("Analyst", "panic recovered in dispatch: %v", r)
+                    }
+                }()
+                a.dispatch(msg)
+            }()
 
-		case <-ctx.Done():
-			return nil
-		}
-	}
+        case <-ctx.Done():
+            return nil
+        }
+    }
 }
 
 func (a *Analyst) dispatch(msg bus.Message) {

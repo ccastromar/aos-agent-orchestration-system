@@ -1,10 +1,11 @@
 package agent
 
 import (
-	"testing"
+    "context"
+    "testing"
 
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
-	"github.com/stretchr/testify/require"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
+    "github.com/stretchr/testify/require"
 )
 
 type dummyParams struct {
@@ -12,12 +13,10 @@ type dummyParams struct {
 }
 
 // Ping implements llm.LLMClient.
-func (d dummyParams) Ping() error {
-	panic("unimplemented")
-}
+func (d dummyParams) Ping(ctx context.Context) error { return nil }
 
-func (d dummyParams) Chat(prompt string) (string, error) {
-	return d.data, nil
+func (d dummyParams) Chat(ctx context.Context, prompt string) (string, error) {
+    return d.data, nil
 }
 
 func TestExtractParams(t *testing.T) {
@@ -25,7 +24,7 @@ func TestExtractParams(t *testing.T) {
 		data: `{"accountId":"999"}`,
 	}
 
-	params, err := llm.ExtractParams(mock, "quiero mi saldo", []string{"accountId"})
-	require.NoError(t, err)
-	require.Equal(t, "999", params["accountId"])
+    params, err := llm.ExtractParams(context.Background(), mock, "quiero mi saldo", []string{"accountId"})
+    require.NoError(t, err)
+    require.Equal(t, "999", params["accountId"])
 }

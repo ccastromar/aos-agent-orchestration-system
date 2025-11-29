@@ -58,10 +58,13 @@ func NewWithEnv(env *config.EnvVars) (*App, error) {
 	}
 	llmClient := llm.NewOllamaClient(ollamaURL, ollamaModel)
 
-	r := &runtime.Runtime{
-		SpecsLoaded: true,
-		LLMClient:   llmClient,
-	}
+ // Mark specs as loaded only if we actually loaded non-empty specs
+    specsLoaded := cfg != nil && len(cfg.Tools) > 0 && len(cfg.Pipelines) > 0 && len(cfg.Intents) > 0
+
+    r := &runtime.Runtime{
+        SpecsLoaded: specsLoaded,
+        LLMClient:   llmClient,
+    }
 
 	// Crear todos los agentes
 	apiAgent := agent.NewAPIAgent(messageBus, uiStore)

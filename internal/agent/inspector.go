@@ -24,10 +24,22 @@ func (i *Inspector) Inbox() chan bus.Message {
 }
 
 func (i *Inspector) Start(ctx context.Context) error {
-	for {
-		select {
-		case msg := <-i.inbox:
-			i.dispatch(msg)
+    defer func() {
+        if r := recover(); r != nil {
+            logx.Error("Inspector", "panic recovered in Start: %v", r)
+        }
+    }()
+    for {
+        select {
+        case msg := <-i.inbox:
+            func() {
+                defer func() {
+                    if r := recover(); r != nil {
+                        logx.Error("Inspector", "panic recovered in dispatch: %v", r)
+                    }
+                }()
+                i.dispatch(msg)
+            }()
 
 		case <-ctx.Done():
 			return nil

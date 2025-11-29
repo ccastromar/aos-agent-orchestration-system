@@ -1,16 +1,16 @@
 package tools
 
 import (
-    "bytes"
-    "context"
-    "encoding/json"
-    "fmt"
-    "io"
-    "log"
-    "net/http"
-    "time"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"time"
 
-    "github.com/ccastromar/aos-agent-orchestration-system/internal/config"
+	"github.com/ccastromar/aos-agent-orchestration-system/internal/config"
 )
 
 // RenderTemplate aplica los parámetros a una plantilla Go.
@@ -32,8 +32,14 @@ import (
 // 	return buf.String(), nil
 // }
 
-// ExecuteTool ejecuta una tool HTTP, renderizando la URL y el body con parámetros.
-func ExecuteTool(ctx context.Context, t config.Tool, params map[string]string) (map[string]any, error) {
+// ExecuteTool ejecuta una tool HTTP con un contexto por defecto (Background).
+// Es un wrapper conveniente usado por tests y llamadas simples.
+func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error) {
+    return ExecuteToolCtx(context.Background(), t, params)
+}
+
+// ExecuteToolCtx ejecuta una tool HTTP, renderizando la URL y el body con parámetros.
+func ExecuteToolCtx(ctx context.Context, t config.Tool, params map[string]string) (map[string]any, error) {
 
 	// 🔥 1. Renderizar la URL
 	finalURL, err := RenderTemplateString(t.URL, params)
@@ -41,21 +47,21 @@ func ExecuteTool(ctx context.Context, t config.Tool, params map[string]string) (
 		return nil, fmt.Errorf("error renderizando URL: %w", err)
 	}
 
- // 🔥 2. Renderizar el body
- bodyParams := map[string]string{}
- for k, v := range t.Body {
-     rendered, err := RenderTemplateString(v, params)
-     if err != nil {
-         return nil, fmt.Errorf("error renderizando body: %w", err)
-     }
-     bodyParams[k] = rendered
- }
+	// 🔥 2. Renderizar el body
+	bodyParams := map[string]string{}
+	for k, v := range t.Body {
+		rendered, err := RenderTemplateString(v, params)
+		if err != nil {
+			return nil, fmt.Errorf("error renderizando body: %w", err)
+		}
+		bodyParams[k] = rendered
+	}
 
- // 2b. Renderizar headers (opcional)
- renderedHeaders, err := RenderTemplateMap(t.Headers, params)
- if err != nil {
-     return nil, fmt.Errorf("error renderizando headers: %w", err)
- }
+	// 2b. Renderizar headers (opcional)
+	renderedHeaders, err := RenderTemplateMap(t.Headers, params)
+	if err != nil {
+		return nil, fmt.Errorf("error renderizando headers: %w", err)
+	}
 
 	// 3. Serializar body
 	var payload []byte
@@ -71,33 +77,35 @@ func ExecuteTool(ctx context.Context, t config.Tool, params map[string]string) (
 	log.Printf("[Execute][DEBUG] finalURL=%s", finalURL)
 
 	// 4. Crear request
- if ctx == nil { ctx = context.Background() }
- req, err := http.NewRequestWithContext(ctx, t.Method, finalURL, bytes.NewReader(payload))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, t.Method, finalURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("error creando request: %w", err)
 	}
- // Establecer cabeceras
- // Content-Type por defecto si no se definió en headers
- if _, ok := renderedHeaders["Content-Type"]; !ok {
-     req.Header.Set("Content-Type", "application/json")
- }
- for k, v := range renderedHeaders {
-     req.Header.Set(k, v)
- }
+	// Establecer cabeceras
+	// Content-Type por defecto si no se definió en headers
+	if _, ok := renderedHeaders["Content-Type"]; !ok {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range renderedHeaders {
+		req.Header.Set(k, v)
+	}
 
 	// 5. Enviar request
- // compute effective timeout: min(ctx deadline leftover, tool timeout)
-    effTimeout := time.Duration(t.TimeoutMs) * time.Millisecond
-    if deadline, ok := ctx.Deadline(); ok {
-        rem := time.Until(deadline)
-        if rem > 0 && (effTimeout == 0 || rem < effTimeout) {
-            effTimeout = rem
-        }
-    }
-    if effTimeout <= 0 {
-        effTimeout = 30 * time.Second
-    }
-    client := &http.Client{ Timeout: effTimeout }
+	// compute effective timeout: min(ctx deadline leftover, tool timeout)
+	effTimeout := time.Duration(t.TimeoutMs) * time.Millisecond
+	if deadline, ok := ctx.Deadline(); ok {
+		rem := time.Until(deadline)
+		if rem > 0 && (effTimeout == 0 || rem < effTimeout) {
+			effTimeout = rem
+		}
+	}
+	if effTimeout <= 0 {
+		effTimeout = 30 * time.Second
+	}
+	client := &http.Client{Timeout: effTimeout}
 
 	resp, err := client.Do(req)
 	if err != nil {

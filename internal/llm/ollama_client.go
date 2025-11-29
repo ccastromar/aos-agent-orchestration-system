@@ -73,18 +73,22 @@ func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) 
  }
  ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
  defer cancel()
+    httpClient := c.HTTPClient
+    if httpClient == nil {
+        httpClient = &http.Client{Timeout: 30 * time.Second}
+    }
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/api/chat", bytes.NewReader(data))
-	if err != nil {
-		return "", fmt.Errorf("new request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
+    resp, err := retryHTTP(ctx, 3, 100*time.Millisecond, func() (*http.Response, error) {
+        req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/api/chat", bytes.NewReader(data))
+        if err != nil {
+            return nil, fmt.Errorf("new request: %w", err)
+        }
+        req.Header.Set("Content-Type", "application/json")
+        return httpClient.Do(req)
+    })
+    if err != nil {
+        return "", err
+    }
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
@@ -125,22 +129,27 @@ func (c *OllamaClient) Chat(ctx context.Context, prompt string) (string, error) 
 // Ping checks if Ollama is reachable and responding.
 func (c *OllamaClient) Ping(ctx context.Context) error {
     // Ollama health: GET /api/tags
-    req, err := http.NewRequest("GET", c.BaseURL+"/api/tags", nil)
-    if err != nil {
-        return err
-    }
-
     if ctx == nil {
         ctx = context.Background()
     }
     ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
     defer cancel()
-    req = req.WithContext(ctx)
 
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return err
-	}
+    httpClient := c.HTTPClient
+    if httpClient == nil {
+        httpClient = &http.Client{Timeout: 1 * time.Second}
+    }
+
+    resp, err := retryHTTP(ctx, 3, 50*time.Millisecond, func() (*http.Response, error) {
+        req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+"/api/tags", nil)
+        if err != nil {
+            return nil, err
+        }
+        return httpClient.Do(req)
+    })
+    if err != nil {
+        return err
+    }
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

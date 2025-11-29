@@ -33,10 +33,22 @@ func (p *Planner) Inbox() chan bus.Message {
 	return p.inbox
 }
 func (p *Planner) Start(ctx context.Context) error {
-	for {
-		select {
-		case msg := <-p.inbox:
-			p.dispatch(msg)
+    defer func() {
+        if r := recover(); r != nil {
+            logx.Error("Planner", "panic recovered in Start: %v", r)
+        }
+    }()
+    for {
+        select {
+        case msg := <-p.inbox:
+            func() {
+                defer func() {
+                    if r := recover(); r != nil {
+                        logx.Error("Planner", "panic recovered in dispatch: %v", r)
+                    }
+                }()
+                p.dispatch(msg)
+            }()
 
 		case <-ctx.Done():
 			return nil

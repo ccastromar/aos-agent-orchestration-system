@@ -59,18 +59,19 @@ func (c *OpenAIClient) Ping(ctx context.Context) error {
     defer cancel()
 
     url := strings.TrimRight(c.BaseURL, "/") + "/models"
-    req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-    if err != nil {
-        return err
-    }
-    req.Header.Set("Authorization", "Bearer "+c.APIKey)
-
     httpClient := c.HTTP
     if httpClient == nil {
         httpClient = &http.Client{Timeout: to}
     }
 
-    resp, err := httpClient.Do(req)
+    resp, err := retryHTTP(ctx, 3, 100*time.Millisecond, func() (*http.Response, error) {
+        req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+        if err != nil {
+            return nil, err
+        }
+        req.Header.Set("Authorization", "Bearer "+c.APIKey)
+        return httpClient.Do(req)
+    })
     if err != nil {
         return fmt.Errorf("openai ping failed: %w", err)
     }
@@ -117,20 +118,20 @@ func (c *OpenAIClient) Chat(ctx context.Context, prompt string) (string, error) 
     defer cancel()
 
     url := strings.TrimRight(c.BaseURL, "/") + "/chat/completions"
-    req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
-    if err != nil {
-        return "", err
-    }
-
-    req.Header.Set("Authorization", "Bearer "+c.APIKey)
-    req.Header.Set("Content-Type", "application/json")
-
     httpClient := c.HTTP
     if httpClient == nil {
         httpClient = &http.Client{Timeout: to}
     }
 
-    resp, err := httpClient.Do(req)
+    resp, err := retryHTTP(ctx, 3, 100*time.Millisecond, func() (*http.Response, error) {
+        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+        if err != nil {
+            return nil, err
+        }
+        req.Header.Set("Authorization", "Bearer "+c.APIKey)
+        req.Header.Set("Content-Type", "application/json")
+        return httpClient.Do(req)
+    })
     if err != nil {
         return "", err
     }

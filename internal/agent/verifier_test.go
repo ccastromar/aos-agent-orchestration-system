@@ -29,7 +29,7 @@ func TestVerifierPipelineMock(t *testing.T) {
 		TimeoutMs: 2000,
 	}
 
-	out, err := tools.ExecuteTool(tool, map[string]string{"serviceName": "payments-api"})
+ out, err := tools.ExecuteTool(tool, map[string]string{"serviceName": "payments-api"})
 	require.NoError(t, err)
 	require.Equal(t, "payments-api", out["service"])
 	require.Equal(t, "running", out["status"])

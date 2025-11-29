@@ -3,8 +3,12 @@ package agent
 import (
     "context"
     "encoding/json"
+    "errors"
     "log"
     "net/http"
+    "os"
+    "regexp"
+    "strings"
     "time"
 
 	"github.com/ccastromar/aos-agent-orchestration-system/internal/bus"
@@ -13,32 +17,123 @@ import (
 )
 
 type APIAgent struct {
-	bus     *bus.Bus
-	inbox   chan bus.Message
-	uiStore *ui.UIStore // <-- nuevo
+    bus     *bus.Bus
+    inbox   chan bus.Message
+    uiStore *ui.UIStore // <-- nuevo
+    // minimal auth and rate limiting
+    apiKey string
+    // naive fixed-window rate limiter per client key
+    rl struct {
+        Window    time.Duration
+        Limit     int
+        mu        chan struct{} // lightweight mutex using channel
+        buckets   map[string]*rateBucket
+    }
 
 }
 
 func NewAPIAgent(b *bus.Bus, ui *ui.UIStore) *APIAgent {
-	return &APIAgent{
-		bus:     b,
-		inbox:   make(chan bus.Message, 16),
-		uiStore: ui,
-	}
+    a := &APIAgent{
+        bus:     b,
+        inbox:   make(chan bus.Message, 16),
+        uiStore: ui,
+        apiKey:  strings.TrimSpace(os.Getenv("API_KEY")),
+    }
+    // initialize rate limiter defaults
+    a.rl.Window = 1 * time.Minute
+    a.rl.Limit = 60
+    a.rl.mu = make(chan struct{}, 1)
+    a.rl.buckets = make(map[string]*rateBucket)
+    return a
 }
 
 // Max request size for POST /ask to protect the server (1MB)
 const maxAskBodyBytes int64 = 1 << 20
+
+// rateBucket tracks hits in a fixed window
+type rateBucket struct {
+    start time.Time
+    hits  int
+}
+
+// acquireRL returns error if rate limit exceeded
+func (a *APIAgent) acquireRL(key string) error {
+    if key == "" {
+        key = "anon"
+    }
+    // lock
+    a.rl.mu <- struct{}{}
+    defer func() { <-a.rl.mu }()
+
+    b, ok := a.rl.buckets[key]
+    now := time.Now()
+    if !ok || now.Sub(b.start) >= a.rl.Window {
+        a.rl.buckets[key] = &rateBucket{start: now, hits: 1}
+        return nil
+    }
+    if b.hits >= a.rl.Limit {
+        return errors.New("rate limit exceeded")
+    }
+    b.hits++
+    return nil
+}
+
+// getClientKey picks an identifier for auth/rate limit: API key if present, else IP
+func getClientKey(r *http.Request) string {
+    // prefer provided API key to segregate limits per token
+    if k := r.Header.Get("X-API-Key"); k != "" {
+        return "key:" + k
+    }
+    if auth := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+        return "key:" + strings.TrimSpace(auth[7:])
+    }
+    // fallback to remote addr (strip port)
+    host := r.RemoteAddr
+    if i := strings.LastIndex(host, ":"); i > 0 {
+        host = host[:i]
+    }
+    return "ip:" + host
+}
+
+// checkAuth enforces API key when configured via API_KEY env var
+func (a *APIAgent) checkAuth(r *http.Request) bool {
+    if a.apiKey == "" {
+        return true // auth disabled
+    }
+    if k := r.Header.Get("X-API-Key"); k != "" && k == a.apiKey {
+        return true
+    }
+    auth := r.Header.Get("Authorization")
+    if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+        token := strings.TrimSpace(auth[7:])
+        return token == a.apiKey
+    }
+    return false
+}
+
+var idRe = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 func (a *APIAgent) Inbox() chan bus.Message {
 	return a.inbox
 }
 
 func (a *APIAgent) Start(ctx context.Context) error {
-	for {
-		select {
-		case msg := <-a.inbox:
-			a.dispatch(msg)
+    defer func() {
+        if r := recover(); r != nil {
+            logx.Error("API", "panic recovered in Start: %v", r)
+        }
+    }()
+    for {
+        select {
+        case msg := <-a.inbox:
+            func() {
+                defer func() {
+                    if r := recover(); r != nil {
+                        logx.Error("API", "panic recovered in dispatch: %v", r)
+                    }
+                }()
+                a.dispatch(msg)
+            }()
 
 		case <-ctx.Done():
 			return nil
@@ -77,6 +172,28 @@ func (a *APIAgent) RegisterHTTP(mux *http.ServeMux) {
 }
 
 func (a *APIAgent) handleAsk(w http.ResponseWriter, r *http.Request) {
+    // Method check
+    if r.Method != http.MethodPost {
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        return
+    }
+    // Auth check (optional)
+    if !a.checkAuth(r) {
+        w.Header().Set("WWW-Authenticate", "Bearer, X-API-Key")
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
+    }
+    // Rate limit
+    if err := a.acquireRL(getClientKey(r)); err != nil {
+        http.Error(w, "too many requests", http.StatusTooManyRequests)
+        return
+    }
+    // Enforce content type
+    ct := r.Header.Get("Content-Type")
+    if ct == "" || !strings.HasPrefix(strings.ToLower(ct), "application/json") {
+        http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
+        return
+    }
     type Req struct {
         Message string `json:"message"`
     }
@@ -181,9 +298,24 @@ func (a *APIAgent) handleTask(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusMethodNotAllowed)
         return
     }
+    // Auth check (optional)
+    if !a.checkAuth(r) {
+        w.Header().Set("WWW-Authenticate", "Bearer, X-API-Key")
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
+    }
+    // Rate limit
+    if err := a.acquireRL(getClientKey(r)); err != nil {
+        http.Error(w, "too many requests", http.StatusTooManyRequests)
+        return
+    }
     id := r.URL.Query().Get("id")
     if id == "" {
         http.Error(w, "id requerido", http.StatusBadRequest)
+        return
+    }
+    if !idRe.MatchString(id) {
+        http.Error(w, "id inválido", http.StatusBadRequest)
         return
     }
 

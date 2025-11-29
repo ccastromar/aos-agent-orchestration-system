@@ -33,15 +33,27 @@ func (v *Verifier) Inbox() chan bus.Message {
 }
 
 func (v *Verifier) Start(ctx context.Context) error {
-	for {
-		select {
-		case msg := <-v.inbox:
-			v.dispatch(msg)
+    defer func() {
+        if r := recover(); r != nil {
+            logx.Error("Verifier", "panic recovered in Start: %v", r)
+        }
+    }()
+    for {
+        select {
+        case msg := <-v.inbox:
+            func() {
+                defer func() {
+                    if r := recover(); r != nil {
+                        logx.Error("Verifier", "panic recovered in dispatch: %v", r)
+                    }
+                }()
+                v.dispatch(msg)
+            }()
 
-		case <-ctx.Done():
-			return nil
-		}
-	}
+        case <-ctx.Done():
+            return nil
+        }
+    }
 }
 
 func (v *Verifier) dispatch(msg bus.Message) {
@@ -148,13 +160,13 @@ func (v *Verifier) handleRunPipeline(msg bus.Message) {
 		logx.Debug("Verifier", "params for the tool=%s id=%s params=%#v",
 			toolName, id, callParams)
 
-  // obtain task context if present
-  taskCtx, _ := GetTaskContext(id)
-  if taskCtx == nil {
-      taskCtx = context.Background()
-  }
+		// obtain task context if present
+		taskCtx, _ := GetTaskContext(id)
+		if taskCtx == nil {
+			taskCtx = context.Background()
+		}
 
-  out, err := tools.ExecuteTool(taskCtx, t, callParams)
+		out, err := tools.ExecuteToolCtx(taskCtx, t, callParams)
 		timer.End()
 		duration := time.Since(start).String()
 

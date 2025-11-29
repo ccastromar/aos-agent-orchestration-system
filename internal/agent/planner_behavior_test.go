@@ -12,8 +12,10 @@ import (
 // llmNewTaskDummy causes DetectIntent to return a key not present in cfg
 type llmNewTaskDummy struct{}
 
-func (llmNewTaskDummy) Ping() error                       { return nil }
-func (llmNewTaskDummy) Chat(prompt string) (string, error) { return "unknown.intent", nil }
+func (llmNewTaskDummy) Ping(ctx context.Context) error { return nil }
+func (llmNewTaskDummy) Chat(ctx context.Context, prompt string) (string, error) {
+    return "unknown.intent", nil
+}
 
 func TestPlanner_NewTask_DispatchesDetectIntent(t *testing.T) {
     b := bus.New()

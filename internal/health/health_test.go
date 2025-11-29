@@ -1,6 +1,7 @@
 package health
 
 import (
+    "context"
     "errors"
     "io"
     "net/http"
@@ -13,8 +14,8 @@ import (
 
 type fakeLLM struct{ pingErr error }
 
-func (f *fakeLLM) Ping() error                           { return f.pingErr }
-func (f *fakeLLM) Chat(prompt string) (string, error)     { return "", nil }
+func (f *fakeLLM) Ping(ctx context.Context) error                   { return f.pingErr }
+func (f *fakeLLM) Chat(ctx context.Context, prompt string) (string, error) { return "", nil }
 
 var _ llm.LLMClient = (*fakeLLM)(nil)
 

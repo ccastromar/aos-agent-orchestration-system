@@ -1,10 +1,11 @@
 package agent
 
 import (
-	"testing"
+    "context"
+    "testing"
 
-	"github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
-	"github.com/stretchr/testify/require"
+    "github.com/ccastromar/aos-agent-orchestration-system/internal/llm"
+    "github.com/stretchr/testify/require"
 )
 
 type dummyLLM struct {
@@ -12,12 +13,10 @@ type dummyLLM struct {
 }
 
 // Ping implements llm.LLMClient.
-func (d dummyLLM) Ping() error {
-	panic("unimplemented")
-}
+func (d dummyLLM) Ping(ctx context.Context) error { return nil }
 
-func (d dummyLLM) Chat(prompt string) (string, error) {
-	return d.output, nil
+func (d dummyLLM) Chat(ctx context.Context, prompt string) (string, error) {
+    return d.output, nil
 }
 
 func TestDetectIntent(t *testing.T) {
@@ -31,7 +30,7 @@ func TestDetectIntent(t *testing.T) {
 		"banking.get_balance": struct{}{},
 	}
 
-    di, err := llm.DetectIntent(mock, "saldo de mi cuenta", schemas)
+    di, err := llm.DetectIntent(context.Background(), mock, "saldo de mi cuenta", schemas)
     require.NoError(t, err)
     require.Equal(t, "banking.get_balance", di.Type)
     // current DetectIntent initializes empty params map
