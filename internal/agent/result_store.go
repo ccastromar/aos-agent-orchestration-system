@@ -25,8 +25,9 @@ func storeResult(id string, res Result) {
 }
 
 func waitForResult(id string, timeout time.Duration) Result {
-	for i := 0; i < 200; i++ { // ~20s
-		time.Sleep(timeout)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
 		resultsMu.Lock()
 		r, ok := results[id]
 		resultsMu.Unlock()

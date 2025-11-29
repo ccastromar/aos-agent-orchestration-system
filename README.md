@@ -99,3 +99,36 @@ The response will include:
 * `summary` → text from the Analyst LLM explaining what happened.
 
 This v2 is a very solid foundation to extend to more domains and more banking operations.
+
+## Secrets for tools (API keys, tokens)
+
+When your YAML-defined tools need to call secured APIs, never hardcode secrets in the YAML. Instead, keep secrets in environment variables and reference them from your tool templates.
+
+How it works:
+- Tool templates (URL, body, and headers) support the template function env "VAR_NAME" to read an environment variable at runtime.
+- Tools can declare HTTP headers in YAML under headers: (optional).
+
+Example YAML tool with a bearer token from environment:
+
+```yaml
+tools:
+  - name: crm.get_customer
+    type: http
+    method: GET
+    url: "https://api.example.com/customers/{{ .customerId }}"
+    timeout: 5000
+    headers:
+      Authorization: "Bearer {{ env \"CRM_API_TOKEN\" }}"
+```
+
+Notes and best practices:
+- Set environment variables with your process manager or shell before starting AOS, e.g.:
+  - macOS/Linux: export CRM_API_TOKEN="..."
+  - systemd: Environment=CRM_API_TOKEN=... in the unit file
+  - Docker: pass via -e CRM_API_TOKEN=...
+- Do not commit secrets to Git. Keep them out of YAML files; reference them via env() instead.
+- You can combine env() with normal parameter templates. For instance, custom headers or query parameters can interpolate both.
+- Default Content-Type is application/json unless you override it in headers:.
+
+Security consideration:
+- env() simply reads the process environment. Prefer your platform’s secret store (Kubernetes Secrets, AWS/GCP/Azure Secret Manager, Docker Swarm/Compose secrets, etc.), mounted as environment variables at runtime.

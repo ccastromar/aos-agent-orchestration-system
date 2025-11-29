@@ -1,0 +1,39 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.out
+*.test
+
+# Go build artifacts
+bin/
+dist/
+build/
+coverage/
+*.coverprofile
+*.cov
+*.prof
+*.pprof
+
+# Módulos y dependencias (opcional)
+# Descomenta si quieres ignorar vendor/
+# vendor/
+
+# IDEs / editores
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs y temporales
+*.log
+*.tmp
+*.temp
+

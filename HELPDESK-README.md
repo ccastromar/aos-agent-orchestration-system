@@ -32,8 +32,8 @@ To use:
 2. Ensure your AOS config loader points at `config/` (it will load `crm.yml` automatically).
 3. Ask things like:
 
-   ```curl -X POST http://localhost:8080/ask \
-  -H "Content-Type: application/json" \
+   ```curl -X POST http://localhost:8080/ask 
+  -H "Content-Type: application/json" 
   -d '{
     "message": "Crea un ticket urgente porque la web no funciona nada bien"
   }' | jq```

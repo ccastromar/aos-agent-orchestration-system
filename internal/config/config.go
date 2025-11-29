@@ -10,14 +10,15 @@ import (
 )
 
 type Tool struct {
-	Name      string            `yaml:"name"`
-	Type      string            `yaml:"type"` // http, cli, etc (solo http en v2)
-	Method    string            `yaml:"method"`
-	URL       string            `yaml:"url"`
-	Mode      string            `yaml:"mode"` // read, write, dangerous
-	TimeoutMs int               `yaml:"timeout"`
-	Body      map[string]string `yaml:"body"`
-	Model     string            `yaml:"model"`
+    Name      string            `yaml:"name"`
+    Type      string            `yaml:"type"` // http, cli, etc (solo http en v2)
+    Method    string            `yaml:"method"`
+    URL       string            `yaml:"url"`
+    Mode      string            `yaml:"mode"` // read, write, dangerous
+    TimeoutMs int               `yaml:"timeout"`
+    Body      map[string]string `yaml:"body"`
+    Model     string            `yaml:"model"`
+    Headers   map[string]string `yaml:"headers"`
 }
 
 type PipelineStep struct {

@@ -10,6 +10,15 @@ intents:
     requires_phone: false
     max_amount: 0
     shadow_mode: false
+
+  - type: banking.get_credit_card_balance
+    description: >
+      "Consultar el credito disponible de la tarjeta"
+    pipeline: pipeline_credit_card
+    required_params:
+        - cardId
+    allow_dangerous: false
+
   - type: banking.get_movements
     description: >
       INTENT: Consulta de movimientos
@@ -25,6 +34,7 @@ intents:
     requires_phone: false
     max_amount: 0
     shadow_mode: false    
+
   - type: banking.send_bizum
     description: >
       INTENT: Envio de dinero por Bizum
@@ -39,5 +49,5 @@ intents:
     allow_dangerous: true
     requires_amount: true       # amount obligatorio
     requires_phone: true        # toPhone obligatorio
-    max_amount: 10              # límite configurable
+    max_amount: 100              # límite configurable
     shadow_mode: false      

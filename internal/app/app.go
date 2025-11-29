@@ -24,7 +24,7 @@ type App struct {
 }
 
 func New() (*App, error) {
-	cfg, err := config.LoadFromDir("config")
+	cfg, err := config.LoadFromDir("definitions")
 	if err != nil {
 		return nil, err
 	}

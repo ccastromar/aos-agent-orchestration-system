@@ -70,7 +70,7 @@ func (a *Analyst) handleSummarize(msg bus.Message) {
 	logx.Debug("Analyst", "rawResult: %#v", raw)
 
 	timer := logx.Start(id, "Analyst", "SummarizeLLM")
-	summary, err := llm.SummarizeBankingResult(a.llmClient, intentType, raw)
+	summary, err := llm.SummarizeResult(a.llmClient, intentType, raw)
 	timer.End()
 
 	if err != nil {

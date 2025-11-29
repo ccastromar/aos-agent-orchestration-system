@@ -40,15 +40,21 @@ func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error
 		return nil, fmt.Errorf("error renderizando URL: %w", err)
 	}
 
-	// 🔥 2. Renderizar el body
-	bodyParams := map[string]string{}
-	for k, v := range t.Body {
-		rendered, err := RenderTemplateString(v, params)
-		if err != nil {
-			return nil, fmt.Errorf("error renderizando body: %w", err)
-		}
-		bodyParams[k] = rendered
-	}
+ // 🔥 2. Renderizar el body
+ bodyParams := map[string]string{}
+ for k, v := range t.Body {
+     rendered, err := RenderTemplateString(v, params)
+     if err != nil {
+         return nil, fmt.Errorf("error renderizando body: %w", err)
+     }
+     bodyParams[k] = rendered
+ }
+
+ // 2b. Renderizar headers (opcional)
+ renderedHeaders, err := RenderTemplateMap(t.Headers, params)
+ if err != nil {
+     return nil, fmt.Errorf("error renderizando headers: %w", err)
+ }
 
 	// 3. Serializar body
 	var payload []byte
@@ -68,7 +74,14 @@ func ExecuteTool(t config.Tool, params map[string]string) (map[string]any, error
 	if err != nil {
 		return nil, fmt.Errorf("error creando request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+ // Establecer cabeceras
+ // Content-Type por defecto si no se definió en headers
+ if _, ok := renderedHeaders["Content-Type"]; !ok {
+     req.Header.Set("Content-Type", "application/json")
+ }
+ for k, v := range renderedHeaders {
+     req.Header.Set(k, v)
+ }
 
 	// 5. Enviar request
 	client := &http.Client{

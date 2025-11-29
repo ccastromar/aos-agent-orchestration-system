@@ -11,6 +11,12 @@ pipelines:
       - tool: banking.core_get_movements
       - analyst: true
 
+  - name: pipeline_credit_card
+    description: "Consulta el credito restante de una tarjeta"
+    steps:
+      - tool: banking.core_get_credit_card_balance
+      - analyst: true
+
   - name: pipeline_bizum
     description: "Envía un Bizum (demo)"
     steps:
